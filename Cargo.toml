@@ -1,0 +1,11 @@
+[package]
+name = "gfx-sprites"
+version = "0.1.0"
+authors = ["Declan Hopkins <hopkins.declan@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+gfx = { path = "gfx-lib" }
+time = "0.2.7"
+rand = "0.7"
+nalgebra = "0.20.0"
