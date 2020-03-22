@@ -1,11 +1,10 @@
 mod game;
 
 use crate::game::GameState;
-use gfx::{color::*, image::*, input::InputState, renderer::*, sprite::*, texture::*, window};
+use gfx::{color::*, image::*, input::{VirtualKeyCode, InputState}, renderer::*, sprite::*, texture::*, window};
 use rand::Rng;
 use std::rc::Rc;
 use time::*;
-use nalgebra::*;
 use std::cell::RefCell;
 
 fn main() {
@@ -41,15 +40,16 @@ fn main() {
         window_width,
         window_height,
         state,
-        move |renderer, state| {
+        move |game, renderer| {
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
 
             println!("Initialized!");
         },
-        move |state| {
+        move |game, input| {
+
         },
-        move |t, renderer, state| {
+        move |game, ticks, renderer| {
             let mut commands: Vec<RenderCommand> = Vec::new();
 
             commands.push(gfx::renderer::RenderCommand {

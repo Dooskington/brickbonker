@@ -16,10 +16,10 @@ pub fn run<T>(
     title: &str,
     width: u32,
     height: u32,
-    state: T,
-    init_callback: impl FnMut(&mut Renderer, &mut T) + 'static,
-    tick_callback: impl FnMut(&mut T) + 'static,
-    render_callback: impl FnMut(u128, &mut Renderer, &T) + 'static,
+    app_state: T,
+    init_callback: impl FnMut(&mut T, &mut Renderer) + 'static,
+    tick_callback: impl FnMut(&mut T, &InputState) + 'static,
+    render_callback: impl FnMut(&T, u128, &mut Renderer) + 'static,
 ) where
     T: 'static,
 {
@@ -36,7 +36,8 @@ pub fn run<T>(
     let mut render_callback = Box::new(render_callback);
 
     let mut renderer: Renderer = Renderer::new(&window);
-    let mut state: T = state;
+    let mut input_state: InputState = InputState::new();
+    let mut app_state: T = app_state;
 
     let one_second: Duration = Duration::seconds(1);
     let mut fps_timer: Duration = Duration::zero();
@@ -67,6 +68,16 @@ pub fn run<T>(
                     renderer.resize(size.width, size.height);
                     window.request_redraw();
                 }
+                WinitWindowEvent::KeyboardInput { input, is_synthetic, .. } => {
+                    if is_synthetic {
+                        // Synthetic key press events are generated for all keys pressed when a window gains focus.
+                        // Likewise, synthetic key release events are generated for all keys pressed when a window goes out of focus.
+                        // Ignore these.
+                        return;
+                    }
+
+                    input_state.handle_keyboard_input(&input);
+                }
                 _ => {}
             },
             WinitEvent::MainEventsCleared => {
@@ -75,7 +86,7 @@ pub fn run<T>(
                 current_time = new_time;
 
                 if !is_initialized {
-                    init_callback(&mut renderer, &mut state);
+                    init_callback(&mut app_state, &mut renderer);
                     is_initialized = true;
 
                     renderer.rebuild_swapchain();
@@ -94,7 +105,7 @@ pub fn run<T>(
                 let snapped_delta_time_seconds = snapped_delta_time_ms / 1000.0;
                 accumulator += snapped_delta_time_seconds;
                 while accumulator >= target_dt {
-                    tick_callback(&mut state);
+                    tick_callback(&mut app_state, &input_state);
 
                     accumulator -= target_dt;
                     time += target_dt;
@@ -102,6 +113,9 @@ pub fn run<T>(
 
                     fps_counter += 1;
                 }
+
+                // Frame is over, clear temporary input state
+                input_state.clear_pressed_and_released();
 
                 fps_timer = fps_timer + frame_time;
                 if fps_timer >= one_second {
@@ -115,7 +129,7 @@ pub fn run<T>(
                 window.request_redraw();
             }
             WinitEvent::RedrawRequested(_) => {
-                render_callback(ticks, &mut renderer, &state);
+                render_callback(&app_state, ticks, &mut renderer);
             }
             _ => (),
         }
