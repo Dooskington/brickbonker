@@ -4,6 +4,7 @@ use specs::prelude::*;
 use std::collections::HashMap;
 
 const DEFAULT_BALL_VELOCITY_X: f32 = 4.0;
+const DEFAULT_BRICK_HP: i32 = 2;
 
 pub struct GameState<'a, 'b> {
     pub world: World,
@@ -20,6 +21,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world.register::<SpriteComponent>();
         world.register::<PlayerPaddleComponent>();
         world.register::<BoundingBoxComponent>();
+        world.register::<BreakableComponent>();
 
         // Resources
         world.insert(RenderCommander::new());
@@ -81,84 +83,39 @@ impl<'a, 'b> GameState<'a, 'b> {
             .build();
 
         // Create brick ents
-        world
-            .create_entity()
-            .with(TransformComponent {
-                pos_x: 64.0,
-                pos_y: 100.0,
-            })
-            .with(BoundingBoxComponent {
-                x: 0,
-                y: 14,
-                w: 64,
-                h: 36,
-                bb: None,
-            })
-            .with(SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                w: 64.0,
-                h: 64.0,
-                region: SpriteRegion {
-                    x: 96,
-                    y: 0,
-                    w: 32,
-                    h: 32,
-                },
-            })
-            .build();
-        world
-            .create_entity()
-            .with(TransformComponent {
-                pos_x: 140.0,
-                pos_y: 128.0,
-            })
-            .with(BoundingBoxComponent {
-                x: 0,
-                y: 14,
-                w: 64,
-                h: 36,
-                bb: None,
-            })
-            .with(SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                w: 64.0,
-                h: 64.0,
-                region: SpriteRegion {
-                    x: 96,
-                    y: 0,
-                    w: 32,
-                    h: 32,
-                },
-            })
-            .build();
-        world
-            .create_entity()
-            .with(TransformComponent {
-                pos_x: 200.0,
-                pos_y: 60.0,
-            })
-            .with(BoundingBoxComponent {
-                x: 0,
-                y: 14,
-                w: 64,
-                h: 36,
-                bb: None,
-            })
-            .with(SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                w: 64.0,
-                h: 64.0,
-                region: SpriteRegion {
-                    x: 96,
-                    y: 0,
-                    w: 32,
-                    h: 32,
-                },
-            })
-            .build();
+        for x in 0..9 {
+            for y in 0..4 {
+                world
+                .create_entity()
+                .with(TransformComponent {
+                    pos_x: 32.0 + (x as f32 * 64.0),
+                    pos_y: 32.0 + (y as f32 * 40.0),
+                })
+                .with(BoundingBoxComponent {
+                    x: 0,
+                    y: 14,
+                    w: 64,
+                    h: 36,
+                    bb: None,
+                })
+                .with(BreakableComponent {
+                    hp: DEFAULT_BRICK_HP
+                })
+                .with(SpriteComponent {
+                    color: COLOR_WHITE,
+                    spritesheet_tex_id: 2,
+                    w: 64.0,
+                    h: 64.0,
+                    region: SpriteRegion {
+                        x: 96,
+                        y: 0,
+                        w: 32,
+                        h: 32,
+                    },
+                })
+                .build();
+            }
+        }
 
         let tick_dispatcher = DispatcherBuilder::new()
             .with(PlayerPaddleSystem, "player_paddle", &[])
@@ -338,6 +295,14 @@ impl Component for PlayerPaddleComponent {
     type Storage = VecStorage<Self>;
 }
 
+pub struct BreakableComponent {
+    pub hp: i32,
+}
+
+impl Component for BreakableComponent {
+    type Storage = VecStorage<Self>;
+}
+
 struct PlayerPaddleSystem;
 
 impl<'a> System<'a> for PlayerPaddleSystem {
@@ -408,12 +373,13 @@ impl<'a> System<'a> for BallPhysicsSystem {
         Read<'a, WorldBoundingBoxState>,
         WriteStorage<'a, TransformComponent>,
         WriteStorage<'a, VelocityComponent>,
+        WriteStorage<'a, BreakableComponent>,
         ReadStorage<'a, PlayerPaddleComponent>,
     );
 
     fn run(
         &mut self,
-        (ents, world_bounding_boxes, mut transforms, mut velocities, paddles): Self::SystemData,
+        (ents, world_bounding_boxes, mut transforms, mut velocities, mut breakables, paddles): Self::SystemData,
     ) {
         for (ent, transform, velocity) in (&ents, &mut transforms, &mut velocities).join() {
             // Check for wall collisions
@@ -456,9 +422,9 @@ impl<'a> System<'a> for BallPhysicsSystem {
                 let diff_y: f32 = ball_center_y - closest_y;
 
                 let dist: f32 = (diff_x.powi(2) + diff_y.powi(2)).sqrt();
-                if dist < 6.0 {
-                    let offset_x = 6.0 - diff_x.abs();
-                    let offset_y = 6.0 - diff_y.abs();
+                if dist < 7.0 {
+                    let offset_x = 7.0 - diff_x.abs();
+                    let offset_y = 7.0 - diff_y.abs();
 
                     let is_paddle = paddles.get(*box_ent).is_some();
                     let collision_dir =
@@ -506,6 +472,14 @@ impl<'a> System<'a> for BallPhysicsSystem {
                                 transform.pos_x -= offset_x;
                             }
                         }
+
+                        // Damage if breakable
+                        if let Some(breakable) = breakables.get_mut(*box_ent) {
+                            breakable.hp -= 1;
+                            if breakable.hp <= 0 {
+                                ents.delete(*box_ent).expect("Failed to delete brick entity!");
+                            }
+                        }
                     }
                 }
             }
@@ -549,6 +523,13 @@ impl<'a> System<'a> for BoundingBoxSystem {
 
             bounding_box.bb = Some(bb.clone());
             world_bounding_boxes.boxes.insert(ent, bb);
+        }
+
+        // Clear any bounding boxes for deleted entities
+        for (ent, _) in world_bounding_boxes.boxes.clone().iter() {
+            if !ents.is_alive(*ent) {
+                world_bounding_boxes.boxes.remove(ent);
+            }
         }
     }
 }

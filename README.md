@@ -5,8 +5,8 @@
     - A/D or Left/Right keys to move
 - [x] Restrict paddle to screen
 - [x] Ball entity that bounces around walls and on paddle
-- [ ] Brick entity
-- [ ] Brick destruction
+- [x] Brick entity and placement
+- [x] Brick destruction
 - [ ] Ability for paddle to hold ball and shoot it with space (at start of game)
 - [ ] When ball falls behind paddle, game over
 

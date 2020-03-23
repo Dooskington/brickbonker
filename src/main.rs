@@ -16,29 +16,7 @@ fn main() {
     let window_title: &str = "Brickbreaker";
     let window_width: u32 = 640;
     let window_height: u32 = 480;
-
     let state = GameState::new();
-
-    let paddle_sprite = SpriteRegion {
-        x: 0,
-        y: 0,
-        w: 64,
-        h: 32,
-    };
-
-    let ball_sprite = SpriteRegion {
-        x: 64,
-        y: 0,
-        w: 32,
-        h: 32,
-    };
-
-    let brick_sprite = SpriteRegion {
-        x: 96,
-        y: 0,
-        w: 32,
-        h: 32,
-    };
 
     window::run(
         window_title,
@@ -56,6 +34,7 @@ fn main() {
                 .write_resource::<RenderCommander>()
                 .clear_commands();
             game.tick_dispatcher.dispatch(&mut game.world);
+            game.world.maintain();
         },
         move |game, ticks, renderer| {
             // Process commands into batches and send to the renderer
