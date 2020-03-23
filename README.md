@@ -4,9 +4,10 @@
 - [x] Move paddle with keyboard
     - A/D or Left/Right keys to move
 - [x] Restrict paddle to screen
-- [ ] Ball entity that bounces around walls and on paddle
+- [x] Ball entity that bounces around walls and on paddle
 - [ ] Brick entity
 - [ ] Brick destruction
+- [ ] Ability for paddle to hold ball and shoot it with space (at start of game)
 - [ ] When ball falls behind paddle, game over
 
 TransformComponent

@@ -9,3 +9,4 @@ gfx = { path = "gfx-lib" }
 time = "0.2.7"
 rand = "0.7"
 specs = "0.16.1"
+nalgebra = "0.20.0"

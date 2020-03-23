@@ -1,7 +1,15 @@
 mod game;
 
 use crate::game::{GameState, RenderCommander};
-use gfx::{color::*, image::*, input::{VirtualKeyCode, InputState}, renderer::*, sprite::*, texture::*, window};
+use gfx::{
+    color::*,
+    image::*,
+    input::{InputState, VirtualKeyCode},
+    renderer::*,
+    sprite::*,
+    texture::*,
+    window,
+};
 use specs::prelude::*;
 
 fn main() {
@@ -44,7 +52,9 @@ fn main() {
         move |game, input| {
             game.world.insert::<InputState>(input.clone());
 
-            game.world.write_resource::<RenderCommander>().clear_commands();
+            game.world
+                .write_resource::<RenderCommander>()
+                .clear_commands();
             game.tick_dispatcher.dispatch(&mut game.world);
         },
         move |game, ticks, renderer| {

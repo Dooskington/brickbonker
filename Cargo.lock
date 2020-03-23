@@ -522,6 +522,7 @@ name = "gfx-sprites"
 version = "0.1.0"
 dependencies = [
  "gfx 0.1.0",
+ "nalgebra 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "specs 0.16.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
