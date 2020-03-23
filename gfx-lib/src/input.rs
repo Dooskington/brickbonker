@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 pub use ::winit::event::VirtualKeyCode;
 
+#[derive(Default, Clone)]
 pub struct InputState {
     current_keys: HashMap<VirtualKeyCode, bool>,
     pressed_keys: HashMap<VirtualKeyCode, bool>,

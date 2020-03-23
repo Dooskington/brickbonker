@@ -28,6 +28,7 @@ pub fn run<T>(
         .with_title(title)
         .with_min_inner_size(LogicalSize::new(width, height))
         .with_inner_size(LogicalSize::new(width, height))
+        .with_resizable(false)
         .build(&event_loop)
         .expect("Failed to create window!");
 

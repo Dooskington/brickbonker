@@ -86,6 +86,11 @@ pub enum Transparency {
     Transparent = 1,
 }
 
+impl Default for Transparency {
+    fn default() -> Self { Transparency::Opaque }
+}
+
+#[derive(Clone)]
 pub enum Renderable {
     Quad {
         bl: (f32, f32),
@@ -110,6 +115,7 @@ pub struct ShaderDescriptorBinding {
     pub stage_flags: ShaderStageFlags,
 }
 
+#[derive(Clone)]
 pub struct RenderCommand {
     pub transparency: Transparency,
     pub shader_program_id: ShaderProgramId,
@@ -711,7 +717,7 @@ impl Renderer {
                     }
                     DescriptorType::SampledImage => {
                         if image_descriptor.is_none() {
-                            eprintln!("Failed to write to SampledImage descriptor binding! Image descriptor was already in use!");
+                            eprintln!("Failed to write to SampledImage descriptor binding! Image descriptor was already in use or didn't exist!");
                             continue;
                         }
 
@@ -724,7 +730,7 @@ impl Renderer {
                     }
                     DescriptorType::Sampler => {
                         if sampler_descriptor.is_none() {
-                            eprintln!("Failed to write to SampledImage descriptor binding! Image descriptor was already in use!");
+                            eprintln!("Failed to write to Sampler descriptor binding! Image descriptor was already in use or didn't exist!");
                             continue;
                         }
 

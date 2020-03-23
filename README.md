@@ -1,9 +1,9 @@
 # Brickbreaker
 
 ## TODO
-- [ ] Move paddle with keyboard
+- [x] Move paddle with keyboard
     - A/D or Left/Right keys to move
-- [ ] Restrict paddle to screen
+- [x] Restrict paddle to screen
 - [ ] Ball entity that bounces around walls and on paddle
 - [ ] Brick entity
 - [ ] Brick destruction

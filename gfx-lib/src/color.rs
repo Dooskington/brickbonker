@@ -40,7 +40,7 @@ pub const COLOR_BLUE: Color = Color {
     a: 1.0,
 };
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Color {
     r: f32,
     g: f32,
@@ -61,4 +61,8 @@ impl Color {
     pub fn data(&self) -> [f32; 4] {
         [self.r, self.g, self.b, self.a]
     }
+}
+
+impl Default for Color {
+    fn default() -> Self { COLOR_WHITE }
 }

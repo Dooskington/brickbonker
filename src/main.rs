@@ -1,16 +1,13 @@
 mod game;
 
-use crate::game::GameState;
+use crate::game::{GameState, RenderCommander};
 use gfx::{color::*, image::*, input::{VirtualKeyCode, InputState}, renderer::*, sprite::*, texture::*, window};
-use rand::Rng;
-use std::rc::Rc;
-use time::*;
-use std::cell::RefCell;
+use specs::prelude::*;
 
 fn main() {
     let window_title: &str = "Brickbreaker";
-    let window_width: u32 = 800;
-    let window_height: u32 = 600;
+    let window_width: u32 = 640;
+    let window_height: u32 = 480;
 
     let state = GameState::new();
 
@@ -43,75 +40,16 @@ fn main() {
         move |game, renderer| {
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
-
-            println!("Initialized!");
         },
         move |game, input| {
+            game.world.insert::<InputState>(input.clone());
 
+            game.world.write_resource::<RenderCommander>().clear_commands();
+            game.tick_dispatcher.dispatch(&mut game.world);
         },
         move |game, ticks, renderer| {
-            let mut commands: Vec<RenderCommand> = Vec::new();
-
-            commands.push(gfx::renderer::RenderCommand {
-                transparency: Transparency::Opaque,
-                shader_program_id: 1,
-                tex_id: 1,
-                layer: 1,
-                data: Renderable::Quad {
-                    bl: (16.0, 116.0),
-                    br: (116.0, 116.0),
-                    tl: (16.0, 16.0),
-                    tr: (116.0, 16.0),
-                    color: COLOR_WHITE,
-                },
-            });
-
-            commands.push(gfx::renderer::RenderCommand {
-                transparency: Transparency::Opaque,
-                shader_program_id: 1,
-                tex_id: 2,
-                layer: 1,
-                data: Renderable::Sprite {
-                    x: 128.0,
-                    y: 128.0,
-                    w: 64.0,
-                    h: 32.0,
-                    color: COLOR_WHITE,
-                    region: paddle_sprite,
-                },
-            });
-
-            commands.push(gfx::renderer::RenderCommand {
-                transparency: Transparency::Opaque,
-                shader_program_id: 1,
-                tex_id: 2,
-                layer: 1,
-                data: Renderable::Sprite {
-                    x: 200.0,
-                    y: 128.0,
-                    w: 32.0,
-                    h: 32.0,
-                    color: COLOR_WHITE,
-                    region: ball_sprite,
-                },
-            });
-
-            commands.push(gfx::renderer::RenderCommand {
-                transparency: Transparency::Opaque,
-                shader_program_id: 1,
-                tex_id: 2,
-                layer: 1,
-                data: Renderable::Sprite {
-                    x: 250.0,
-                    y: 128.0,
-                    w: 32.0,
-                    h: 32.0,
-                    color: COLOR_WHITE,
-                    region: brick_sprite,
-                },
-            });
-
             // Process commands into batches and send to the renderer
+            let commands = game.world.write_resource::<RenderCommander>().commands();
             let batches = renderer.process_commands(commands);
             renderer.render(batches);
         },
