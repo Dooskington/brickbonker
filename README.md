@@ -7,12 +7,15 @@
 - [x] Ball entity that bounces around walls and on paddle
 - [x] Brick entity and placement
 - [x] Brick destruction
-- [ ] Ability for paddle to hold ball and shoot it with space (at start of game)
-- [ ] When ball falls behind paddle, game over
+- [x] Ability for paddle to hold ball and shoot it with space (at start of game)
+- [ ] When ball falls behind paddle, restart game
+- [x] Spawn ball on paddle when game starts
+- [ ] Text Rendering for score
+- [ ] Save a single high score
+- [ ] Audio
 
 TransformComponent
 - Position
-- Last Position
 
 PlayerPaddleComponent
 - Moves entity in response to player keyboard input
@@ -21,8 +24,7 @@ PlayerPaddleComponent
 SpriteComponent
 - Renders a sprite for an entity
 
-ColliderComponent
-- Bounding Box
+BoundingBoxComponent
 
 VelocityComponent
 - Velocity
