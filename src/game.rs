@@ -1,7 +1,7 @@
 use gfx::{color::*, input::*, renderer::*, sprite::*};
 use nalgebra::Vector2;
-use specs::prelude::*;
 use shrev::EventChannel;
+use specs::prelude::*;
 use std::collections::HashMap;
 
 const DEFAULT_BALL_FORCE: f32 = 5.0;
@@ -28,10 +28,6 @@ impl<'a, 'b> GameState<'a, 'b> {
         world.register::<PlayerPaddleComponent>();
         world.register::<BoundingBoxComponent>();
         world.register::<BreakableComponent>();
-
-        // Resources
-        world.insert(RenderCommander::new());
-        world.insert(WorldBoundingBoxState::default());
 
         // Create paddle ent
         let paddle_ent = world
@@ -66,41 +62,53 @@ impl<'a, 'b> GameState<'a, 'b> {
         for x in 0..9 {
             for y in 0..4 {
                 world
-                .create_entity()
-                .with(TransformComponent {
-                    pos_x: 32.0 + (x as f32 * 64.0),
-                    pos_y: 32.0 + (y as f32 * 40.0),
-                })
-                .with(BoundingBoxComponent {
-                    x: 0,
-                    y: 14,
-                    w: 64,
-                    h: 36,
-                    bb: None,
-                })
-                .with(BreakableComponent {
-                    hp: DEFAULT_BRICK_HP
-                })
-                .with(SpriteComponent {
-                    color: COLOR_WHITE,
-                    spritesheet_tex_id: 2,
-                    w: 64.0,
-                    h: 64.0,
-                    region: SpriteRegion {
-                        x: 96,
-                        y: 0,
-                        w: 32,
-                        h: 32,
-                    },
-                })
-                .build();
+                    .create_entity()
+                    .with(TransformComponent {
+                        pos_x: 32.0 + (x as f32 * 64.0),
+                        pos_y: 32.0 + (y as f32 * 40.0),
+                    })
+                    .with(BoundingBoxComponent {
+                        x: 0,
+                        y: 14,
+                        w: 64,
+                        h: 36,
+                        bb: None,
+                    })
+                    .with(BreakableComponent {
+                        hp: DEFAULT_BRICK_HP,
+                    })
+                    .with(SpriteComponent {
+                        color: COLOR_WHITE,
+                        spritesheet_tex_id: 2,
+                        w: 64.0,
+                        h: 64.0,
+                        region: SpriteRegion {
+                            x: 96,
+                            y: 0,
+                            w: 32,
+                            h: 32,
+                        },
+                    })
+                    .build();
             }
         }
+
+        // Resources
+        world.insert(RenderCommander::new());
+        world.insert(WorldBoundingBoxState::default());
+        world.insert(LevelState {
+            level: 1,
+            player_paddle_ent: Some(paddle_ent),
+        });
 
         let mut tick_dispatcher = DispatcherBuilder::new()
             .with(BallPhysicsSystem, "ball_physics", &[])
             .with(PlayerPaddleSystem, "player_paddle", &[])
-            .with(BoundingBoxSystem, "bounding_box", &["player_paddle", "ball_physics"])
+            .with(
+                BoundingBoxSystem,
+                "bounding_box",
+                &["player_paddle", "ball_physics"],
+            )
             .with_thread_local(SpawnBallSystem::default())
             .with_thread_local(SpriteRenderSystem {})
             .build();
@@ -108,13 +116,15 @@ impl<'a, 'b> GameState<'a, 'b> {
         tick_dispatcher.setup(&mut world);
 
         // Spawn the initial ball
-        world.write_resource::<EventChannel<SpawnBallEvent>>().single_write(SpawnBallEvent {
-            pos_x: 0.0,
-            pos_y: 0.0,
-            vel_x: 0.0,
-            vel_y: 0.0,
-            owning_paddle_ent: Some(paddle_ent),
-        });
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 0.0,
+                pos_y: 0.0,
+                vel_x: 0.0,
+                vel_y: 0.0,
+                owning_paddle_ent: Some(paddle_ent),
+            });
 
         GameState {
             world,
@@ -179,6 +189,12 @@ pub struct BoundingBox {
 #[derive(Default)]
 pub struct WorldBoundingBoxState {
     pub boxes: HashMap<Entity, BoundingBox>,
+}
+
+#[derive(Default)]
+pub struct LevelState {
+    pub level: i32,
+    pub player_paddle_ent: Option<Entity>,
 }
 
 #[derive(Default)]
@@ -352,14 +368,18 @@ impl<'a> System<'a> for PlayerPaddleSystem {
         // Handle paddles that are holding a ball
         for mut paddle in (&mut paddles).join() {
             if let Some(ball_ent) = paddle.held_ball_ent {
-                let ball_transform = transforms.get_mut(ball_ent).expect("Failed to set held_ball_ent position! Entity had no TransformComponent!");
+                let ball_transform = transforms.get_mut(ball_ent).expect(
+                    "Failed to set held_ball_ent position! Entity had no TransformComponent!",
+                );
                 ball_transform.pos_x = paddle.held_ball_pos_x;
                 ball_transform.pos_y = paddle.held_ball_pos_y;
 
                 if input.is_key_pressed(VirtualKeyCode::Space) {
                     paddle.held_ball_ent = None;
 
-                    let ball = balls.get_mut(ball_ent).expect("Failed to set held_ball_ent position! Entity had no BallComponent!");
+                    let ball = balls.get_mut(ball_ent).expect(
+                        "Failed to set held_ball_ent position! Entity had no BallComponent!",
+                    );
                     ball.is_held = false;
                     ball.vel_x = 0.0;
                     ball.vel_y = -DEFAULT_BALL_FORCE;
@@ -399,6 +419,8 @@ impl<'a> System<'a> for BallPhysicsSystem {
     type SystemData = (
         Entities<'a>,
         Read<'a, WorldBoundingBoxState>,
+        Read<'a, LevelState>,
+        Write<'a, EventChannel<SpawnBallEvent>>,
         WriteStorage<'a, TransformComponent>,
         WriteStorage<'a, BallComponent>,
         WriteStorage<'a, BreakableComponent>,
@@ -407,7 +429,16 @@ impl<'a> System<'a> for BallPhysicsSystem {
 
     fn run(
         &mut self,
-        (ents, world_bounding_boxes, mut transforms, mut balls, mut breakables, paddles): Self::SystemData,
+        (
+            ents,
+            world_bounding_boxes,
+            level,
+            mut spawn_ball_events,
+            mut transforms,
+            mut balls,
+            mut breakables,
+            paddles,
+        ): Self::SystemData,
     ) {
         for (ent, transform, ball) in (&ents, &mut transforms, &mut balls).join() {
             if ball.is_held {
@@ -418,18 +449,17 @@ impl<'a> System<'a> for BallPhysicsSystem {
             if transform.pos_x < 0.0 {
                 transform.pos_x = 0.0;
                 ball.vel_x = -ball.vel_x * 1.1;
+                continue;
             } else if transform.pos_x > (640.0 - 64.0) {
                 transform.pos_x = 640.0 - 64.0;
                 ball.vel_x = -ball.vel_x * 1.1;
+                continue;
             }
-
-            // Check for ceiling collision
-            if transform.pos_y < 0.0 {
+            // Check for ceiling colision
+            else if transform.pos_y < 0.0 {
                 transform.pos_y = 0.0;
                 ball.vel_y = -ball.vel_y * 1.1;
-            } else if transform.pos_y > 480.0 {
-                transform.pos_y = 480.0;
-                ball.vel_y = -ball.vel_y * 1.1;
+                continue;
             }
 
             // Check for collisions with bounding boxes (including the paddle)
@@ -475,8 +505,7 @@ impl<'a> System<'a> for BallPhysicsSystem {
                         ball.vel_x = DEFAULT_BALL_FORCE * percentage * paddle_hit_force;
                         ball.vel_y *= -1.0;
 
-                        let normalized =
-                            Vector2::<f32>::new(ball.vel_x, ball.vel_y).normalize();
+                        let normalized = Vector2::<f32>::new(ball.vel_x, ball.vel_y).normalize();
                         let new_velocity = normalized * temp_velocity.magnitude();
 
                         ball.vel_x = new_velocity.x;
@@ -509,14 +538,31 @@ impl<'a> System<'a> for BallPhysicsSystem {
                         if let Some(breakable) = breakables.get_mut(*box_ent) {
                             breakable.hp -= 1;
                             if breakable.hp <= 0 {
-                                ents.delete(*box_ent).expect("Failed to delete brick entity!");
+                                ents.delete(*box_ent)
+                                    .expect("Failed to delete brick entity!");
                             }
                         }
                     }
+
+                    break;
                 }
             }
 
-            // TODO Check for out of bounds (below paddle)
+            // Check for out of bounds (below paddle)
+            if transform.pos_y > 480.0 {
+                transform.pos_y = 480.0;
+                ball.vel_y = 0.0;
+
+                ents.delete(ent).expect("Failed to delete ball ent!");
+
+                spawn_ball_events.single_write(SpawnBallEvent {
+                    pos_x: 0.0,
+                    pos_y: 0.0,
+                    vel_x: 0.0,
+                    vel_y: 0.0,
+                    owning_paddle_ent: level.player_paddle_ent,
+                });
+            }
 
             ball.vel_x = ball.vel_x.min(8.0).max(-8.0);
             ball.vel_y = ball.vel_y.min(8.0).max(-8.0);
@@ -581,39 +627,54 @@ impl<'a> System<'a> for SpawnBallSystem {
 
     fn setup(&mut self, world: &mut World) {
         Self::SystemData::setup(world);
-        self.spawn_ball_event_reader = Some(world.fetch_mut::<EventChannel<SpawnBallEvent>>().register_reader());
+        self.spawn_ball_event_reader = Some(
+            world
+                .fetch_mut::<EventChannel<SpawnBallEvent>>()
+                .register_reader(),
+        );
     }
 
     fn run(&mut self, (ents, lazy_updater, spawn_ball_events, mut paddles): Self::SystemData) {
         for event in spawn_ball_events.read(&mut self.spawn_ball_event_reader.as_mut().unwrap()) {
             let ent = ents.create();
 
-            lazy_updater.insert(ent, TransformComponent {
-                pos_x: event.pos_x,
-                pos_y: event.pos_y,
-            });
-
-            lazy_updater.insert(ent, SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                w: BALL_WIDTH,
-                h: BALL_HEIGHT,
-                region: SpriteRegion {
-                    x: 64,
-                    y: 0,
-                    w: 32,
-                    h: 32,
+            lazy_updater.insert(
+                ent,
+                TransformComponent {
+                    pos_x: event.pos_x,
+                    pos_y: event.pos_y,
                 },
-            });
+            );
 
-            lazy_updater.insert(ent, BallComponent {
-                vel_x: event.vel_x,
-                vel_y: event.vel_y,
-                is_held: event.owning_paddle_ent.is_some(),
-            });
+            lazy_updater.insert(
+                ent,
+                SpriteComponent {
+                    color: COLOR_WHITE,
+                    spritesheet_tex_id: 2,
+                    w: BALL_WIDTH,
+                    h: BALL_HEIGHT,
+                    region: SpriteRegion {
+                        x: 64,
+                        y: 0,
+                        w: 32,
+                        h: 32,
+                    },
+                },
+            );
+
+            lazy_updater.insert(
+                ent,
+                BallComponent {
+                    vel_x: event.vel_x,
+                    vel_y: event.vel_y,
+                    is_held: event.owning_paddle_ent.is_some(),
+                },
+            );
 
             if let Some(paddle_ent) = event.owning_paddle_ent {
-                let mut paddle = paddles.get_mut(paddle_ent).expect("Failed to spawn ball ent: owning_paddle_ent not found!");
+                let mut paddle = paddles
+                    .get_mut(paddle_ent)
+                    .expect("Failed to spawn ball ent: owning_paddle_ent not found!");
                 paddle.held_ball_ent = Some(ent);
             }
 
