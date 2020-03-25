@@ -1,16 +1,27 @@
-use gfx::{color::*, input::*, renderer::*, sprite::*};
+use gfx::{Point2u, Vector2f, color::*, input::*, renderer::*, sprite::*};
 use nalgebra::Vector2;
 use shrev::EventChannel;
 use specs::prelude::*;
 use std::collections::HashMap;
 
+const PADDLE_SPRITE_WIDTH: u32 = 64;
+const PADDLE_SPRITE_HEIGHT: u32 = 32;
+const PADDLE_BB_HEIGHT: u32 = 8;
+const PADDLE_SCALE_X: f32 = 2.0;
+const PADDLE_SCALE_Y: f32 = 2.0;
+
 const DEFAULT_BALL_FORCE: f32 = 5.0;
-const DEFAULT_BRICK_HP: i32 = 3;
-const PADDLE_WIDTH: f32 = 128.0;
-const PADDLE_HEIGHT: f32 = 64.0;
-const BALL_WIDTH: f32 = 64.0;
-const BALL_HEIGHT: f32 = 64.0;
+const BALL_SPRITE_WIDTH: u32 = 32;
+const BALL_SPRITE_HEIGHT: u32 = 32;
+const BALL_SCALE_X: f32 = 2.0;
+const BALL_SCALE_Y: f32 = 2.0;
 const BALL_BB_RADIUS: f32 = 7.0;
+
+const DEFAULT_BRICK_HP: i32 = 1;
+const BRICK_SPRITE_WIDTH: u32 = 32;
+const BRICK_SPRITE_HEIGHT: u32 = 32;
+const BRICK_SCALE_X: f32 = 2.0;
+const BRICK_SCALE_Y: f32 = 2.0;
 
 pub struct GameState<'a, 'b> {
     pub world: World,
@@ -34,26 +45,26 @@ impl<'a, 'b> GameState<'a, 'b> {
             .create_entity()
             .with(TransformComponent {
                 pos_x: 64.0,
-                pos_y: 425.0,
+                pos_y: 470.0,
+                origin: Point2u::new(32, 20),
+                scale: Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
             })
             .with(BoundingBoxComponent {
-                x: 16,
-                y: 24,
-                w: 96,
-                h: 16,
+                x: 8,
+                y: 12,
+                w: 48,
+                h: PADDLE_BB_HEIGHT,
                 bb: None,
             })
             .with(PlayerPaddleComponent::default())
             .with(SpriteComponent {
                 color: COLOR_WHITE,
                 spritesheet_tex_id: 2,
-                w: PADDLE_WIDTH,
-                h: PADDLE_HEIGHT,
                 region: SpriteRegion {
                     x: 0,
                     y: 0,
-                    w: 64,
-                    h: 32,
+                    w: PADDLE_SPRITE_WIDTH,
+                    h: PADDLE_SPRITE_HEIGHT,
                 },
             })
             .build();
@@ -64,14 +75,16 @@ impl<'a, 'b> GameState<'a, 'b> {
                 world
                     .create_entity()
                     .with(TransformComponent {
-                        pos_x: 32.0 + (x as f32 * 64.0),
-                        pos_y: 32.0 + (y as f32 * 40.0),
+                        pos_x: 32.0 + (x as f32 * (BRICK_SPRITE_WIDTH as f32 * BRICK_SCALE_X)),
+                        pos_y: 32.0 + (y as f32 * (40.0 * BRICK_SCALE_Y)),
+                        scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
+                        origin: Point2u::new(0, 0),
                     })
                     .with(BoundingBoxComponent {
                         x: 0,
-                        y: 14,
-                        w: 64,
-                        h: 36,
+                        y: 7,
+                        w: 32,
+                        h: 18,
                         bb: None,
                     })
                     .with(BreakableComponent {
@@ -80,13 +93,11 @@ impl<'a, 'b> GameState<'a, 'b> {
                     .with(SpriteComponent {
                         color: COLOR_WHITE,
                         spritesheet_tex_id: 2,
-                        w: 64.0,
-                        h: 64.0,
                         region: SpriteRegion {
                             x: 96,
                             y: 0,
-                            w: 32,
-                            h: 32,
+                            w: BRICK_SPRITE_WIDTH,
+                            h: BRICK_SPRITE_HEIGHT,
                         },
                     })
                     .build();
@@ -229,7 +240,7 @@ impl RenderCommander {
         self.bound_color = val;
     }
 
-    pub fn sprite(&mut self, x: f32, y: f32, w: f32, h: f32, region: SpriteRegion) {
+    pub fn sprite(&mut self, x: f32, y: f32, origin: Point2u, scale: Vector2f, region: SpriteRegion) {
         self.commands.push(gfx::renderer::RenderCommand {
             transparency: self.bound_transparency,
             shader_program_id: 1,
@@ -238,8 +249,8 @@ impl RenderCommander {
             data: Renderable::Sprite {
                 x,
                 y,
-                w,
-                h,
+                origin,
+                scale,
                 color: self.bound_color,
                 region,
             },
@@ -261,8 +272,10 @@ impl RenderCommander {
 
 #[derive(Debug)]
 pub struct TransformComponent {
-    pos_x: f32,
-    pos_y: f32,
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub origin: Point2u,
+    pub scale: Vector2f,
 }
 
 impl Component for TransformComponent {
@@ -274,6 +287,7 @@ pub struct BallComponent {
     vel_x: f32,
     vel_y: f32,
     is_held: bool,
+    did_hit_brick_this_tick: bool,
 }
 
 impl Component for BallComponent {
@@ -282,10 +296,10 @@ impl Component for BallComponent {
 
 #[derive(Debug)]
 pub struct BoundingBoxComponent {
-    pub x: i32,
-    pub y: i32,
-    pub w: i32,
-    pub h: i32,
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
     pub bb: Option<BoundingBox>,
 }
 
@@ -298,8 +312,6 @@ pub struct SpriteComponent {
     pub color: Color,
     pub region: SpriteRegion,
     pub spritesheet_tex_id: TextureId,
-    pub w: f32,
-    pub h: f32,
 }
 
 impl Component for SpriteComponent {
@@ -342,7 +354,7 @@ impl<'a> System<'a> for PlayerPaddleSystem {
             let is_moving_right =
                 input.is_key_held(VirtualKeyCode::D) || input.is_key_held(VirtualKeyCode::Right);
 
-            let speed = 8.0;
+            let speed = 10.0;
             let mut movement_x: f32 = 0.0;
 
             if is_moving_left {
@@ -357,12 +369,12 @@ impl<'a> System<'a> for PlayerPaddleSystem {
 
             if transform.pos_x < 0.0 {
                 transform.pos_x = 0.0;
-            } else if transform.pos_x > (640.0 - 128.0) {
-                transform.pos_x = 640.0 - 128.0;
+            } else if transform.pos_x > (640.0 - 64.0) {
+                transform.pos_x = 640.0 - 64.0;
             }
 
-            paddle.held_ball_pos_x = transform.pos_x + (PADDLE_WIDTH / 2.0) - (BALL_WIDTH / 2.0);
-            paddle.held_ball_pos_y = transform.pos_y - (BALL_HEIGHT / 2.0);
+            paddle.held_ball_pos_x = transform.pos_x;
+            paddle.held_ball_pos_y = transform.pos_y - (PADDLE_BB_HEIGHT as f32 * PADDLE_SCALE_Y) - BALL_BB_RADIUS;
         }
 
         // Handle paddles that are holding a ball
@@ -405,8 +417,8 @@ impl<'a> System<'a> for SpriteRenderSystem {
             render.sprite(
                 transform.pos_x,
                 transform.pos_y,
-                sprite.w,
-                sprite.h,
+                transform.origin,
+                transform.scale,
                 sprite.region,
             );
         }
@@ -450,8 +462,8 @@ impl<'a> System<'a> for BallPhysicsSystem {
                 transform.pos_x = 0.0;
                 ball.vel_x = -ball.vel_x * 1.1;
                 continue;
-            } else if transform.pos_x > (640.0 - 64.0) {
-                transform.pos_x = 640.0 - 64.0;
+            } else if transform.pos_x > 640.0 {
+                transform.pos_x = 640.0;
                 ball.vel_x = -ball.vel_x * 1.1;
                 continue;
             }
@@ -463,9 +475,10 @@ impl<'a> System<'a> for BallPhysicsSystem {
             }
 
             // Check for collisions with bounding boxes (including the paddle)
-            let ball_center_x: f32 = transform.pos_x + 32.0;
-            let ball_center_y: f32 = transform.pos_y + 32.0;
+            let ball_center_x: f32 = transform.pos_x;
+            let ball_center_y: f32 = transform.pos_y;
 
+            let mut did_collide = false;
             for (box_ent, bb) in world_bounding_boxes.boxes.iter() {
                 if box_ent.id() == ent.id() {
                     continue;
@@ -485,16 +498,12 @@ impl<'a> System<'a> for BallPhysicsSystem {
 
                 let dist: f32 = (diff_x.powi(2) + diff_y.powi(2)).sqrt();
                 if dist < BALL_BB_RADIUS {
-                    let offset_x = BALL_BB_RADIUS - diff_x.abs();
-                    let offset_y = BALL_BB_RADIUS - diff_y.abs();
+                    did_collide = true;
 
                     let is_paddle = paddles.get(*box_ent).is_some();
                     let collision_dir =
                         AABBCollisionDirection::from_vector(Vector2::<f32>::new(diff_x, diff_y));
-                    if is_paddle
-                        && ((collision_dir == AABBCollisionDirection::Up)
-                            || (collision_dir == AABBCollisionDirection::Down))
-                    {
+                    if is_paddle {
                         // Ball hit the paddle, reflect y velocity and set x velocity based on hit point
 
                         let x_dist_to_paddle_center = (ball_center_x - bb.center_x) / 2.0;
@@ -503,7 +512,9 @@ impl<'a> System<'a> for BallPhysicsSystem {
                         let paddle_hit_force: f32 = 2.0;
                         let temp_velocity = Vector2::<f32>::new(ball.vel_x, ball.vel_y);
                         ball.vel_x = DEFAULT_BALL_FORCE * percentage * paddle_hit_force;
-                        ball.vel_y *= -1.0;
+
+                        // Always propel the ball upwards - this fixes issues when the ball hits the side or underneath the paddle.
+                        ball.vel_y = -1.0 * ball.vel_y.abs();
 
                         let normalized = Vector2::<f32>::new(ball.vel_x, ball.vel_y).normalize();
                         let new_velocity = normalized * temp_velocity.magnitude();
@@ -512,40 +523,40 @@ impl<'a> System<'a> for BallPhysicsSystem {
                         ball.vel_y = new_velocity.y;
                     } else {
                         // Ball hit a block or wall of some sort, just reflect velocity based on the collision direction
-                        if (collision_dir == AABBCollisionDirection::Up)
-                            || (collision_dir == AABBCollisionDirection::Down)
-                        {
-                            ball.vel_y *= -1.0;
+                        let correction = Vector2f::new(diff_x, diff_y).normalize() * BALL_BB_RADIUS;
+                        transform.pos_x += correction.x;
+                        transform.pos_y += correction.y;
 
-                            if collision_dir == AABBCollisionDirection::Up {
-                                transform.pos_y -= offset_y;
-                            } else if collision_dir == AABBCollisionDirection::Down {
-                                transform.pos_y += offset_y;
+                        // Only change velocity if we aren't still resolving a collision from last tick. This prevents jitters.
+                        if !ball.did_hit_brick_this_tick {
+                            if (collision_dir == AABBCollisionDirection::Up)
+                                || (collision_dir == AABBCollisionDirection::Down)
+                            {
+                                ball.vel_y *= -1.0;
+                            } else if (collision_dir == AABBCollisionDirection::Left)
+                                || (collision_dir == AABBCollisionDirection::Right)
+                            {
+                                ball.vel_x *= -1.0;
                             }
-                        } else if (collision_dir == AABBCollisionDirection::Left)
-                            || (collision_dir == AABBCollisionDirection::Right)
-                        {
-                            ball.vel_x *= -1.0;
 
-                            if collision_dir == AABBCollisionDirection::Left {
-                                transform.pos_x -= offset_x;
-                            } else if collision_dir == AABBCollisionDirection::Right {
-                                transform.pos_x += offset_x;
+                            // Damage if breakable
+                            if let Some(breakable) = breakables.get_mut(*box_ent) {
+                                breakable.hp -= 1;
+                                if breakable.hp <= 0 {
+                                    ents.delete(*box_ent)
+                                        .expect("Failed to delete brick entity!");
+                                }
                             }
-                        }
 
-                        // Damage if breakable
-                        if let Some(breakable) = breakables.get_mut(*box_ent) {
-                            breakable.hp -= 1;
-                            if breakable.hp <= 0 {
-                                ents.delete(*box_ent)
-                                    .expect("Failed to delete brick entity!");
-                            }
+                            ball.did_hit_brick_this_tick = true;
                         }
                     }
-
-                    break;
                 }
+            }
+
+            // If the ball hit a brick last tick but not this one, we can clear that flag
+            if !did_collide && ball.did_hit_brick_this_tick {
+                ball.did_hit_brick_this_tick = false;
             }
 
             // Check for out of bounds (below paddle)
@@ -588,15 +599,22 @@ impl<'a> System<'a> for BoundingBoxSystem {
         (ents, mut world_bounding_boxes, transforms, mut bounding_boxes): Self::SystemData,
     ) {
         for (ent, transform, bounding_box) in (&ents, &transforms, &mut bounding_boxes).join() {
+            let x = transform.pos_x - (transform.origin.x as f32 * transform.scale.x);
+            let y = transform.pos_y - (transform.origin.y as f32 * transform.scale.y);
+            let bb_x = bounding_box.x as f32 * transform.scale.x;
+            let bb_y = bounding_box.y as f32 * transform.scale.y;
+            let bb_w = bounding_box.w as f32 * transform.scale.x;
+            let bb_h = bounding_box.h as f32 * transform.scale.y;
+
             let bb = BoundingBox {
-                left_x: transform.pos_x + bounding_box.x as f32,
-                right_x: transform.pos_x + bounding_box.x as f32 + bounding_box.w as f32,
-                top_y: transform.pos_y + bounding_box.y as f32,
-                bottom_y: transform.pos_y + bounding_box.y as f32 + bounding_box.h as f32,
-                center_x: transform.pos_x + bounding_box.x as f32 + (bounding_box.w as f32 / 2.0),
-                center_y: transform.pos_y + bounding_box.y as f32 + (bounding_box.h as f32 / 2.0),
-                half_w: bounding_box.w as f32 / 2.0,
-                half_h: bounding_box.h as f32 / 2.0,
+                left_x: x + bb_x,
+                right_x: x + bb_x + bb_w,
+                top_y: y + bb_y,
+                bottom_y: y + bb_y + bb_h,
+                center_x: x + bb_x + (bb_w / 2.0),
+                center_y: y + bb_y + (bb_h / 2.0),
+                half_w: bb_w / 2.0,
+                half_h: bb_h / 2.0,
             };
 
             bounding_box.bb = Some(bb.clone());
@@ -643,6 +661,8 @@ impl<'a> System<'a> for SpawnBallSystem {
                 TransformComponent {
                     pos_x: event.pos_x,
                     pos_y: event.pos_y,
+                    origin: Point2u::new(16, 16),
+                    scale: Vector2f::new(BALL_SCALE_X, BALL_SCALE_Y),
                 },
             );
 
@@ -651,13 +671,11 @@ impl<'a> System<'a> for SpawnBallSystem {
                 SpriteComponent {
                     color: COLOR_WHITE,
                     spritesheet_tex_id: 2,
-                    w: BALL_WIDTH,
-                    h: BALL_HEIGHT,
                     region: SpriteRegion {
                         x: 64,
                         y: 0,
-                        w: 32,
-                        h: 32,
+                        w: BALL_SPRITE_WIDTH,
+                        h: BALL_SPRITE_HEIGHT,
                     },
                 },
             );
@@ -668,6 +686,7 @@ impl<'a> System<'a> for SpawnBallSystem {
                     vel_x: event.vel_x,
                     vel_y: event.vel_y,
                     is_held: event.owning_paddle_ent.is_some(),
+                    did_hit_brick_this_tick: false,
                 },
             );
 

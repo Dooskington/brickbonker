@@ -4,6 +4,8 @@ use crate::{
     sprite::*,
     texture::*,
     window::*,
+    Vector2f,
+    Point2u,
 };
 use backend;
 use gfx_hal::{
@@ -102,8 +104,8 @@ pub enum Renderable {
     Sprite {
         x: f32,
         y: f32,
-        w: f32,
-        h: f32,
+        origin: Point2u,
+        scale: Vector2f,
         color: Color,
         region: SpriteRegion,
     },
@@ -237,8 +239,8 @@ impl RenderBatch {
             Renderable::Sprite {
                 x,
                 y,
-                w,
-                h,
+                origin,
+                scale,
                 color,
                 region,
             } => {
@@ -246,8 +248,8 @@ impl RenderBatch {
                     self.batch_mesh.as_mut().unwrap(),
                     x,
                     y,
-                    w,
-                    h,
+                    origin,
+                    scale,
                     color,
                     region,
                     self.tex_info.1,

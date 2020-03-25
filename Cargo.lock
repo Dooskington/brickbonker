@@ -431,6 +431,7 @@ dependencies = [
  "gfx-hal 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glsl-to-spirv 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "image 0.22.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nalgebra 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra-glm 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "winit 0.21.0 (git+https://github.com/rust-windowing/winit)",

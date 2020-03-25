@@ -8,10 +8,14 @@
 - [x] Brick entity and placement
 - [x] Brick destruction
 - [x] Ability for paddle to hold ball and shoot it with space (at start of game)
-- [ ] When ball falls behind paddle, restart game
+- [x] When ball falls behind paddle, restart game
 - [x] Spawn ball on paddle when game starts
+- [x] Implement support for sprite origins
+    - Needs to affect rendering position and bounding box position
 - [ ] Text Rendering for score
 - [ ] Save a single high score
+- [ ] Game Over screen with restart button
+- [ ] Main menu
 - [ ] Audio
 
 TransformComponent

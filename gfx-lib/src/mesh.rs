@@ -1,4 +1,4 @@
-use crate::{color::Color, sprite::SpriteRegion};
+use crate::{color::Color, sprite::SpriteRegion, Vector2f, Point2u};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -24,8 +24,8 @@ pub fn add_sprite(
     mesh: &mut Mesh,
     x: f32,
     y: f32,
-    w: f32,
-    h: f32,
+    origin: Point2u,
+    scale: Vector2f,
     color: Color,
     region: SpriteRegion,
     spritesheet_width: u32,
@@ -41,6 +41,12 @@ pub fn add_sprite(
     let v: f32 = region.y as f32 / spritesheet_height as f32;
     let u_width: f32 = region.w as f32 / spritesheet_width as f32;
     let v_height: f32 = region.h as f32 / spritesheet_height as f32;
+
+    // Offset the render position based on the sprite origin
+    let x = x - (origin.x as f32 * scale.x);
+    let y = y - (origin.y as f32 * scale.y);
+    let w = region.w as f32 * scale.x;
+    let h = region.h as f32 * scale.y;
 
     let new_vertices: [Vertex; 4] = [
         // Top left

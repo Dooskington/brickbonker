@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 winit = { git = "https://github.com/rust-windowing/winit" }
+nalgebra = "0.20.0"
 nalgebra-glm = "0.6.0"
 image = "0.22.3"
 time = "0.2.7"

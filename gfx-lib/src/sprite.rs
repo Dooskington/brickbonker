@@ -1,3 +1,5 @@
+use crate::Point2u;
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct SpriteRegion {
     pub x: u32,
