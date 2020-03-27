@@ -1,4 +1,4 @@
-use crate::{color::Color, sprite::SpriteRegion, Vector2f, Point2u};
+use crate::{color::Color, sprite::SpriteRegion, Vector2f, Point2f};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -24,7 +24,7 @@ pub fn add_sprite(
     mesh: &mut Mesh,
     x: f32,
     y: f32,
-    origin: Point2u,
+    origin: Point2f,
     scale: Vector2f,
     color: Color,
     region: SpriteRegion,

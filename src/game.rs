@@ -1,4 +1,4 @@
-use gfx::{Point2u, Vector2f, color::*, input::*, renderer::*, sprite::*};
+use gfx::{color::*, input::*, renderer::*, sprite::*, Point2f, Vector2f};
 use nalgebra::Vector2;
 use shrev::EventChannel;
 use specs::prelude::*;
@@ -6,22 +6,29 @@ use std::collections::HashMap;
 
 const PADDLE_SPRITE_WIDTH: u32 = 64;
 const PADDLE_SPRITE_HEIGHT: u32 = 32;
-const PADDLE_BB_HEIGHT: u32 = 8;
-const PADDLE_SCALE_X: f32 = 2.0;
-const PADDLE_SCALE_Y: f32 = 2.0;
+const PADDLE_BB_X: f32 = 3.0;
+const PADDLE_BB_Y: f32 = 10.0;
+const PADDLE_BB_WIDTH: f32 = 58.0;
+const PADDLE_BB_HEIGHT: f32 = 10.0;
+const PADDLE_SCALE_X: f32 = 1.0;
+const PADDLE_SCALE_Y: f32 = 1.0;
 
-const DEFAULT_BALL_FORCE: f32 = 5.0;
+const DEFAULT_BALL_FORCE: f32 = 2.0;
 const BALL_SPRITE_WIDTH: u32 = 32;
 const BALL_SPRITE_HEIGHT: u32 = 32;
-const BALL_SCALE_X: f32 = 2.0;
-const BALL_SCALE_Y: f32 = 2.0;
-const BALL_BB_RADIUS: f32 = 7.0;
+const BALL_SCALE_X: f32 = 1.0;
+const BALL_SCALE_Y: f32 = 1.0;
+const BALL_BB_RADIUS: f32 = 5.0;
+const BALL_MAX_AXIS_VELOCITY: f32 = 6.5;
 
 const DEFAULT_BRICK_HP: i32 = 1;
 const BRICK_SPRITE_WIDTH: u32 = 32;
-const BRICK_SPRITE_HEIGHT: u32 = 32;
-const BRICK_SCALE_X: f32 = 2.0;
-const BRICK_SCALE_Y: f32 = 2.0;
+const BRICK_SPRITE_HEIGHT: u32 = 16;
+const BRICK_SCALE_X: f32 = 1.0;
+const BRICK_SCALE_Y: f32 = 1.0;
+
+const LEVEL_BRICKS_WIDTH: usize = 18;
+const LEVEL_BRICKS_HEIGHT: usize = 10;
 
 pub struct GameState<'a, 'b> {
     pub world: World,
@@ -46,13 +53,13 @@ impl<'a, 'b> GameState<'a, 'b> {
             .with(TransformComponent {
                 pos_x: 64.0,
                 pos_y: 470.0,
-                origin: Point2u::new(32, 20),
+                origin: Point2f::new(32.0, 20.0),
                 scale: Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
             })
             .with(BoundingBoxComponent {
-                x: 8,
-                y: 12,
-                w: 48,
+                x: PADDLE_BB_X,
+                y: PADDLE_BB_Y,
+                w: PADDLE_BB_WIDTH,
                 h: PADDLE_BB_HEIGHT,
                 bb: None,
             })
@@ -70,21 +77,21 @@ impl<'a, 'b> GameState<'a, 'b> {
             .build();
 
         // Create brick ents
-        for x in 0..9 {
-            for y in 0..4 {
+        for x in 0..LEVEL_BRICKS_WIDTH {
+            for y in 0..LEVEL_BRICKS_HEIGHT {
                 world
                     .create_entity()
                     .with(TransformComponent {
                         pos_x: 32.0 + (x as f32 * (BRICK_SPRITE_WIDTH as f32 * BRICK_SCALE_X)),
-                        pos_y: 32.0 + (y as f32 * (40.0 * BRICK_SCALE_Y)),
+                        pos_y: 32.0 + (y as f32 * (BRICK_SPRITE_HEIGHT as f32 * BRICK_SCALE_Y)),
                         scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
-                        origin: Point2u::new(0, 0),
+                        origin: Point2f::new(0.0, 16.0),
                     })
                     .with(BoundingBoxComponent {
-                        x: 0,
-                        y: 7,
-                        w: 32,
-                        h: 18,
+                        x: 0.0,
+                        y: 0.0,
+                        w: 32.0,
+                        h: 16.0,
                         bb: None,
                     })
                     .with(BreakableComponent {
@@ -153,7 +160,21 @@ pub struct SpawnBallEvent {
     pub owning_paddle_ent: Option<Entity>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+/// Ball collision types and associated data
+#[derive(Clone, Copy, PartialEq)]
+pub enum BallCollision {
+    Brick {
+        hit_normal: Vector2f,
+        collision_dir: AABBCollisionDirection,
+        hit_ent: Entity,
+    },
+    Paddle {
+        x_hit_percentage: f32,
+    },
+    None,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AABBCollisionDirection {
     Up,
     Down,
@@ -174,7 +195,7 @@ impl AABBCollisionDirection {
         let mut max: f32 = 0.0;
         let mut best_match: AABBCollisionDirection = AABBCollisionDirection::Up;
         for (v, dir) in dirs {
-            let dot_product: f32 = vector.normalize().dot(&v);
+            let dot_product: f32 = vector.dot(&v);
             if dot_product > max {
                 max = dot_product;
                 best_match = dir;
@@ -240,7 +261,14 @@ impl RenderCommander {
         self.bound_color = val;
     }
 
-    pub fn sprite(&mut self, x: f32, y: f32, origin: Point2u, scale: Vector2f, region: SpriteRegion) {
+    pub fn sprite(
+        &mut self,
+        x: f32,
+        y: f32,
+        origin: Point2f,
+        scale: Vector2f,
+        region: SpriteRegion,
+    ) {
         self.commands.push(gfx::renderer::RenderCommand {
             transparency: self.bound_transparency,
             shader_program_id: 1,
@@ -274,7 +302,7 @@ impl RenderCommander {
 pub struct TransformComponent {
     pub pos_x: f32,
     pub pos_y: f32,
-    pub origin: Point2u,
+    pub origin: Point2f,
     pub scale: Vector2f,
 }
 
@@ -284,6 +312,7 @@ impl Component for TransformComponent {
 
 #[derive(Debug)]
 pub struct BallComponent {
+    pub last_pos: Point2f,
     vel_x: f32,
     vel_y: f32,
     is_held: bool,
@@ -296,10 +325,10 @@ impl Component for BallComponent {
 
 #[derive(Debug)]
 pub struct BoundingBoxComponent {
-    pub x: u32,
-    pub y: u32,
-    pub w: u32,
-    pub h: u32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
     pub bb: Option<BoundingBox>,
 }
 
@@ -320,6 +349,7 @@ impl Component for SpriteComponent {
 
 #[derive(Default)]
 pub struct PlayerPaddleComponent {
+    pub vel_x: f32,
     pub held_ball_ent: Option<Entity>,
     pub held_ball_pos_x: f32,
     pub held_ball_pos_y: f32,
@@ -355,26 +385,27 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                 input.is_key_held(VirtualKeyCode::D) || input.is_key_held(VirtualKeyCode::Right);
 
             let speed = 10.0;
-            let mut movement_x: f32 = 0.0;
+            paddle.vel_x = 0.0;
 
             if is_moving_left {
-                movement_x -= speed;
+                paddle.vel_x -= speed;
             }
 
             if is_moving_right {
-                movement_x += speed;
+                paddle.vel_x += speed;
             }
 
-            transform.pos_x += movement_x;
+            transform.pos_x += paddle.vel_x;
 
-            if transform.pos_x < 0.0 {
-                transform.pos_x = 0.0;
-            } else if transform.pos_x > (640.0 - 64.0) {
-                transform.pos_x = 640.0 - 64.0;
+            if transform.pos_x < (PADDLE_SPRITE_WIDTH as f32 / 2.0) {
+                transform.pos_x = PADDLE_SPRITE_WIDTH as f32 / 2.0;
+            } else if transform.pos_x > (640.0 - (PADDLE_SPRITE_WIDTH as f32 / 2.0)) {
+                transform.pos_x = 640.0 - (PADDLE_SPRITE_WIDTH as f32 / 2.0);
             }
 
             paddle.held_ball_pos_x = transform.pos_x;
-            paddle.held_ball_pos_y = transform.pos_y - (PADDLE_BB_HEIGHT as f32 * PADDLE_SCALE_Y) - BALL_BB_RADIUS;
+            paddle.held_ball_pos_y =
+                transform.pos_y - (PADDLE_BB_HEIGHT as f32 * PADDLE_SCALE_Y) - BALL_BB_RADIUS;
         }
 
         // Handle paddles that are holding a ball
@@ -392,8 +423,9 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                     let ball = balls.get_mut(ball_ent).expect(
                         "Failed to set held_ball_ent position! Entity had no BallComponent!",
                     );
+
                     ball.is_held = false;
-                    ball.vel_x = 0.0;
+                    ball.vel_x = paddle.vel_x * 0.5;
                     ball.vel_y = -DEFAULT_BALL_FORCE;
                 }
             }
@@ -457,115 +489,28 @@ impl<'a> System<'a> for BallPhysicsSystem {
                 continue;
             }
 
+            let mut correction: Option<Vector2f> = None;
+
             // Check for wall collisions
             if transform.pos_x < 0.0 {
                 transform.pos_x = 0.0;
-                ball.vel_x = -ball.vel_x * 1.1;
-                continue;
+                ball.vel_x = ball.vel_x.abs() * 1.1;
             } else if transform.pos_x > 640.0 {
                 transform.pos_x = 640.0;
-                ball.vel_x = -ball.vel_x * 1.1;
-                continue;
+                ball.vel_x = ball.vel_x.abs() * -1.1;
             }
             // Check for ceiling colision
             else if transform.pos_y < 0.0 {
                 transform.pos_y = 0.0;
-                ball.vel_y = -ball.vel_y * 1.1;
-                continue;
+                ball.vel_y = ball.vel_y.abs() * 1.1;
             }
-
-            // Check for collisions with bounding boxes (including the paddle)
-            let ball_center_x: f32 = transform.pos_x;
-            let ball_center_y: f32 = transform.pos_y;
-
-            let mut did_collide = false;
-            for (box_ent, bb) in world_bounding_boxes.boxes.iter() {
-                if box_ent.id() == ent.id() {
-                    continue;
-                }
-
-                let center_diff_x: f32 = ball_center_x - bb.center_x;
-                let center_diff_y: f32 = ball_center_y - bb.center_y;
-
-                let clamped_diff_x: f32 = center_diff_x.max(-bb.half_w).min(bb.half_w);
-                let clamped_diff_y: f32 = center_diff_y.max(-bb.half_h).min(bb.half_h);
-
-                let closest_x: f32 = bb.center_x + clamped_diff_x;
-                let closest_y: f32 = bb.center_y + clamped_diff_y;
-
-                let diff_x: f32 = ball_center_x - closest_x;
-                let diff_y: f32 = ball_center_y - closest_y;
-
-                let dist: f32 = (diff_x.powi(2) + diff_y.powi(2)).sqrt();
-                if dist < BALL_BB_RADIUS {
-                    did_collide = true;
-
-                    let is_paddle = paddles.get(*box_ent).is_some();
-                    let collision_dir =
-                        AABBCollisionDirection::from_vector(Vector2::<f32>::new(diff_x, diff_y));
-                    if is_paddle {
-                        // Ball hit the paddle, reflect y velocity and set x velocity based on hit point
-
-                        let x_dist_to_paddle_center = (ball_center_x - bb.center_x) / 2.0;
-                        let percentage = x_dist_to_paddle_center / bb.half_w;
-
-                        let paddle_hit_force: f32 = 2.0;
-                        let temp_velocity = Vector2::<f32>::new(ball.vel_x, ball.vel_y);
-                        ball.vel_x = DEFAULT_BALL_FORCE * percentage * paddle_hit_force;
-
-                        // Always propel the ball upwards - this fixes issues when the ball hits the side or underneath the paddle.
-                        ball.vel_y = -1.0 * ball.vel_y.abs();
-
-                        let normalized = Vector2::<f32>::new(ball.vel_x, ball.vel_y).normalize();
-                        let new_velocity = normalized * temp_velocity.magnitude();
-
-                        ball.vel_x = new_velocity.x;
-                        ball.vel_y = new_velocity.y;
-                    } else {
-                        // Ball hit a block or wall of some sort, just reflect velocity based on the collision direction
-                        let correction = Vector2f::new(diff_x, diff_y).normalize() * BALL_BB_RADIUS;
-                        transform.pos_x += correction.x;
-                        transform.pos_y += correction.y;
-
-                        // Only change velocity if we aren't still resolving a collision from last tick. This prevents jitters.
-                        if !ball.did_hit_brick_this_tick {
-                            if (collision_dir == AABBCollisionDirection::Up)
-                                || (collision_dir == AABBCollisionDirection::Down)
-                            {
-                                ball.vel_y *= -1.0;
-                            } else if (collision_dir == AABBCollisionDirection::Left)
-                                || (collision_dir == AABBCollisionDirection::Right)
-                            {
-                                ball.vel_x *= -1.0;
-                            }
-
-                            // Damage if breakable
-                            if let Some(breakable) = breakables.get_mut(*box_ent) {
-                                breakable.hp -= 1;
-                                if breakable.hp <= 0 {
-                                    ents.delete(*box_ent)
-                                        .expect("Failed to delete brick entity!");
-                                }
-                            }
-
-                            ball.did_hit_brick_this_tick = true;
-                        }
-                    }
-                }
-            }
-
-            // If the ball hit a brick last tick but not this one, we can clear that flag
-            if !did_collide && ball.did_hit_brick_this_tick {
-                ball.did_hit_brick_this_tick = false;
-            }
-
             // Check for out of bounds (below paddle)
-            if transform.pos_y > 480.0 {
+            else if transform.pos_y > 480.0 {
                 transform.pos_y = 480.0;
+                ball.vel_x = 0.0;
                 ball.vel_y = 0.0;
 
                 ents.delete(ent).expect("Failed to delete ball ent!");
-
                 spawn_ball_events.single_write(SpawnBallEvent {
                     pos_x: 0.0,
                     pos_y: 0.0,
@@ -574,14 +519,185 @@ impl<'a> System<'a> for BallPhysicsSystem {
                     owning_paddle_ent: level.player_paddle_ent,
                 });
             }
+            // Check for brick collisions
+            else {
+                let ball_center = Point2f::new(transform.pos_x, transform.pos_y);
 
-            ball.vel_x = ball.vel_x.min(8.0).max(-8.0);
-            ball.vel_y = ball.vel_y.min(8.0).max(-8.0);
+                let mut collision = check_ball_brick_collision(
+                    ent.id(),
+                    ball_center,
+                    world_bounding_boxes.boxes.iter(),
+                    &paddles,
+                );
+
+                // If there was a collision, also check for collision at our interpolated position (halfway between last and current position).
+                // If we also get a collision here, it will be the more accurate result.
+                if let BallCollision::Brick { .. } = collision {
+                    let movement_dist = nalgebra::distance(&ball_center, &ball.last_pos);
+                    let dir = (ball_center - ball.last_pos).normalize();
+                    let interpolated = ball_center - (dir * (movement_dist / 2.0));
+
+                    println!("  - Checking interpolated collision at {}", interpolated);
+                    let interpolated_pos_collision = check_ball_brick_collision(
+                        ent.id(),
+                        interpolated,
+                        world_bounding_boxes.boxes.iter(),
+                        &paddles,
+                    );
+
+                    if interpolated_pos_collision != BallCollision::None {
+                        println!("      - had collision AGAIN");
+                        collision = interpolated_pos_collision;
+                    }
+
+                    /*
+                    println!("  - Checking last_pos collision at {}", ball.last_pos);
+                    let last_pos_collision = check_ball_brick_collision(
+                        ent.id(),
+                        ball.last_pos,
+                        world_bounding_boxes.boxes.iter(),
+                        &paddles,
+                    );
+
+                    if last_pos_collision != BallCollision::None {
+                        println!("      - had collision AT LAST POS!");
+                        collision = last_pos_collision;
+                    }
+                    */
+                }
+
+                // Handle the collision (if any)
+                match collision {
+                    // Paddle collision
+                    BallCollision::Paddle { x_hit_percentage } => {
+                        let paddle_hit_force: f32 = 2.0;
+                        let temp_velocity = Vector2f::new(ball.vel_x, ball.vel_y);
+                        ball.vel_x = DEFAULT_BALL_FORCE * x_hit_percentage * paddle_hit_force;
+
+                        // Always propel the ball upwards - this fixes issues when the ball hits the side or underneath the paddle.
+                        ball.vel_y = -1.0 * (ball.vel_y.abs() * 0.9);
+
+                        let normalized = Vector2::<f32>::new(ball.vel_x, ball.vel_y).normalize();
+                        let new_velocity = normalized * temp_velocity.magnitude();
+
+                        ball.vel_x = new_velocity.x;
+                        ball.vel_y = new_velocity.y;
+                    }
+                    // Brick collision
+                    BallCollision::Brick {
+                        hit_normal,
+                        collision_dir,
+                        hit_ent,
+                    } => {
+                        correction = Some(hit_normal * BALL_BB_RADIUS);
+                        //println!("{}, {} CORRECTION: {}, before normalize: {}, dist: {}, closest: {}, {}, ball: {}, {}", transform.pos_x, transform.pos_y, correction, Vector2f::new(diff_x, diff_y), dist, closest_x, closest_y, ball_center_x, ball_center_y);
+                        //transform.pos_x += correction.x;
+                        //transform.pos_y += correction.y;
+
+                        if (collision_dir == AABBCollisionDirection::Up)
+                            || (collision_dir == AABBCollisionDirection::Down)
+                        {
+                            ball.vel_y *= -1.0;
+                        } else if (collision_dir == AABBCollisionDirection::Left)
+                            || (collision_dir == AABBCollisionDirection::Right)
+                        {
+                            ball.vel_x *= -1.0;
+                        }
+
+                        //let current_magnitude = Vector2f::new(ball.vel_x, ball.vel_y).magnitude();
+                        //ball.vel_x = hit_normal.x * current_magnitude;
+                        //ball.vel_y = hit_normal.y * current_magnitude;
+
+                        // Damage if breakable
+                        if let Some(breakable) = breakables.get_mut(hit_ent) {
+                            breakable.hp -= 1;
+                            if breakable.hp <= 0 {
+                                ents.delete(hit_ent)
+                                    .expect("Failed to delete brick entity!");
+                            }
+                        }
+                    }
+                    // No collision
+                    BallCollision::None => {}
+                }
+            }
+
+            ball.vel_x = ball.vel_x.min(BALL_MAX_AXIS_VELOCITY).max(-BALL_MAX_AXIS_VELOCITY);
+            ball.vel_y = ball.vel_y.min(BALL_MAX_AXIS_VELOCITY).max(-BALL_MAX_AXIS_VELOCITY);
+
+            ball.last_pos = Point2f::new(transform.pos_x, transform.pos_y);
+
+            if let Some(correction) = correction {
+                transform.pos_x += correction.x;
+                transform.pos_y += correction.y;
+            }
 
             transform.pos_x += ball.vel_x;
             transform.pos_y += ball.vel_y;
         }
     }
+}
+
+pub fn check_ball_brick_collision<'a, I>(
+    ent_id: u32,
+    ball_center: Point2f,
+    brick_bbs: I,
+    paddles: &ReadStorage<'a, PlayerPaddleComponent>,
+) -> BallCollision
+where
+    I: IntoIterator<Item = (&'a Entity, &'a BoundingBox)>,
+{
+    let mut collisions: Vec<(f32, BallCollision)> = Vec::new();
+    for (box_ent, bb) in brick_bbs {
+        if box_ent.id() == ent_id {
+            continue;
+        }
+
+        let center_diff_x: f32 = ball_center.x - bb.center_x;
+        let center_diff_y: f32 = ball_center.y - bb.center_y;
+
+        let clamped_diff_x: f32 = center_diff_x.max(-bb.half_w).min(bb.half_w);
+        let clamped_diff_y: f32 = center_diff_y.max(-bb.half_h).min(bb.half_h);
+
+        let closest_x: f32 = bb.center_x + clamped_diff_x;
+        let closest_y: f32 = bb.center_y + clamped_diff_y;
+
+        let diff_x: f32 = ball_center.x - closest_x;
+        let diff_y: f32 = ball_center.y - closest_y;
+
+        let dist: f32 = (diff_x.powf(2.0) + diff_y.powf(2.0)).sqrt();
+        if dist < BALL_BB_RADIUS {
+            println!("HIT {}, {}", diff_x, diff_y);
+            let dir = Vector2f::new(diff_x, diff_y).normalize();
+            let collision_dir = AABBCollisionDirection::from_vector(dir);
+            let is_paddle = paddles.get(*box_ent).is_some();
+
+            if is_paddle {
+                let x_dist_to_paddle_center = (ball_center.x - bb.center_x) / 2.0;
+                let x_hit_percentage = x_dist_to_paddle_center / bb.half_w;
+
+                // If we hit the paddle, just return that immediately. It takes priority over other collisions
+                return BallCollision::Paddle { x_hit_percentage };
+            } else {
+                collisions.push((
+                    dist,
+                    BallCollision::Brick {
+                        hit_normal: dir,
+                        collision_dir,
+                        hit_ent: *box_ent,
+                    },
+                ));
+            }
+        }
+    }
+
+    // Figure out which collision was closest and just return that
+    collisions.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    if let Some((_, collision)) = collisions.first() {
+        return *collision;
+    }
+
+    BallCollision::None
 }
 
 struct BoundingBoxSystem;
@@ -661,7 +777,7 @@ impl<'a> System<'a> for SpawnBallSystem {
                 TransformComponent {
                     pos_x: event.pos_x,
                     pos_y: event.pos_y,
-                    origin: Point2u::new(16, 16),
+                    origin: Point2f::new(16.0, 16.0),
                     scale: Vector2f::new(BALL_SCALE_X, BALL_SCALE_Y),
                 },
             );
@@ -683,6 +799,7 @@ impl<'a> System<'a> for SpawnBallSystem {
             lazy_updater.insert(
                 ent,
                 BallComponent {
+                    last_pos: Point2f::new(0.0, 0.0),
                     vel_x: event.vel_x,
                     vel_y: event.vel_y,
                     is_held: event.owning_paddle_ent.is_some(),

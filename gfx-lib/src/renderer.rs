@@ -5,7 +5,7 @@ use crate::{
     texture::*,
     window::*,
     Vector2f,
-    Point2u,
+    Point2f,
 };
 use backend;
 use gfx_hal::{
@@ -104,7 +104,7 @@ pub enum Renderable {
     Sprite {
         x: f32,
         y: f32,
-        origin: Point2u,
+        origin: Point2f,
         scale: Vector2f,
         color: Color,
         region: SpriteRegion,
