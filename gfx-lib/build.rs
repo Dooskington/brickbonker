@@ -3,7 +3,7 @@ extern crate glsl_to_spirv;
 use glsl_to_spirv::ShaderType;
 use std::error::Error;
 
-fn main() -> Result<(), Box<Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     // Create destination path if necessary
     std::fs::create_dir_all("res/shaders/bin")?;
 

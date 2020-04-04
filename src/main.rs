@@ -1,4 +1,5 @@
 mod game;
+mod physics;
 
 use crate::game::{GameState, RenderCommander};
 use gfx::{
@@ -34,6 +35,7 @@ fn main() {
                 .write_resource::<RenderCommander>()
                 .clear_commands();
             game.tick_dispatcher.dispatch(&mut game.world);
+            game.physics_dispatcher.dispatch(&mut game.world);
             game.world.maintain();
         },
         move |game, ticks, renderer| {

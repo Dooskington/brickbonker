@@ -11,23 +11,23 @@ use backend;
 use gfx_hal::{
     adapter::{Adapter, PhysicalDevice},
     buffer,
-    command::{self, BufferImageCopy, ClearColor, ClearDepthStencil, ClearValue, CommandBuffer},
+    command::{self, BufferImageCopy, CommandBuffer},
     device::Device,
     format::{Aspects, ChannelType, Format, Swizzle},
     image::{
         self as img, Access, Extent, Filter, Layout, Offset, SamplerDesc, SubresourceLayers,
         SubresourceRange, ViewCapabilities, ViewKind, WrapMode,
     },
-    memory::{Barrier, Dependencies, Properties},
+    memory::{Barrier, Dependencies, Properties, Segment},
     pass::{
         Attachment, AttachmentLoadOp, AttachmentOps, AttachmentStoreOp, Subpass, SubpassDependency,
-        SubpassDesc, SubpassRef,
+        SubpassDesc,
     },
     pool::{self, CommandPool},
     pso::{
         self, AttributeDesc, BlendState, ColorBlendDesc, ColorMask, Comparison, DepthStencilDesc,
         DepthTest, Descriptor, DescriptorPool, DescriptorRangeDesc, DescriptorSetLayoutBinding,
-        DescriptorSetWrite, DescriptorType, Element, EntryPoint, GraphicsPipelineDesc,
+        DescriptorSetWrite, DescriptorType, ImageDescriptorType, BufferDescriptorType, BufferDescriptorFormat, Element, EntryPoint, GraphicsPipelineDesc,
         GraphicsShaderSet, PipelineStage, Rasterizer, Rect, ShaderStageFlags, Specialization,
         StencilTest, VertexBufferDesc, Viewport,
     },
@@ -495,7 +495,12 @@ impl Renderer {
                     "gfx-lib/res/shaders/bin/untextured.glslv.spv",
                     "gfx-lib/res/shaders/bin/untextured.glslf.spv",
                     vec![ShaderDescriptorBinding {
-                        ty: DescriptorType::UniformBuffer,
+                        ty: DescriptorType::Buffer {
+                            ty: BufferDescriptorType::Uniform,
+                            format: BufferDescriptorFormat::Structured {
+                                dynamic_offset: false,
+                            },
+                        },
                         stage_flags: ShaderStageFlags::VERTEX,
                     }],
                 ),
@@ -510,11 +515,20 @@ impl Renderer {
                     "gfx-lib/res/shaders/bin/textured.glslf.spv",
                     vec![
                         ShaderDescriptorBinding {
-                            ty: DescriptorType::UniformBuffer,
+                            ty: DescriptorType::Buffer {
+                                ty: BufferDescriptorType::Uniform,
+                                format: BufferDescriptorFormat::Structured {
+                                    dynamic_offset: false,
+                                },
+                            },
                             stage_flags: ShaderStageFlags::VERTEX,
                         },
                         ShaderDescriptorBinding {
-                            ty: DescriptorType::SampledImage,
+                            ty: DescriptorType::Image {
+                                ty: ImageDescriptorType::Sampled {
+                                    with_sampler: false,
+                                },
+                            },
                             stage_flags: ShaderStageFlags::FRAGMENT,
                         },
                         ShaderDescriptorBinding {
@@ -709,17 +723,17 @@ impl Renderer {
 
             for (i, shader_desc_binding) in shader_descriptor_bindings.iter().enumerate() {
                 match shader_desc_binding.ty {
-                    DescriptorType::UniformBuffer => {
+                    DescriptorType::Buffer { ty: BufferDescriptorType::Uniform { .. }, ..} => {
                         writes.push(DescriptorSetWrite {
                             set,
                             binding: i as u32,
                             array_offset: 0,
-                            descriptors: Some(Descriptor::Buffer(self.uniform_buffer.as_ref().unwrap(), None..None)),
+                            descriptors: Some(Descriptor::Buffer(self.uniform_buffer.as_ref().unwrap(), buffer::SubRange { offset: 0, size: None })),
                         });
                     }
-                    DescriptorType::SampledImage => {
+                    DescriptorType::Image { ty: ImageDescriptorType::Sampled { .. }, .. } => {
                         if image_descriptor.is_none() {
-                            eprintln!("Failed to write to SampledImage descriptor binding! Image descriptor was already in use or didn't exist!");
+                            eprintln!("Failed to write to Sampled Image descriptor binding! Image descriptor was already in use or didn't exist!");
                             continue;
                         }
 
@@ -984,12 +998,12 @@ impl Renderer {
             // Bind buffers
             let vertex_buffer_offset = (frame_idx * batch.vertex_buffer.2) as u64;
             command_buffer
-                .bind_vertex_buffers(0, vec![(batch.vertex_buffer_ref(), vertex_buffer_offset)]);
+                .bind_vertex_buffers(0, Some((batch.vertex_buffer_ref(), buffer::SubRange { offset: vertex_buffer_offset, size: Some(batch.vertex_buffer.2 as u64) })));
 
             let index_buffer_offset = (frame_idx * batch.index_buffer.2) as u64;
             command_buffer.bind_index_buffer(buffer::IndexBufferView {
                 buffer: batch.index_buffer_ref(),
-                offset: index_buffer_offset,
+                range: buffer::SubRange { offset: index_buffer_offset, size: Some(batch.index_buffer.2 as u64) },
                 index_type: IndexType::U32,
             });
 
@@ -1073,7 +1087,7 @@ impl Renderer {
                 let mapping = self
                     .device
                     .borrow()
-                    .map_memory(&image_upload_memory, 0..upload_size)
+                    .map_memory(&image_upload_memory, Segment::ALL)
                     .unwrap();
                 for y in 0..h as usize {
                     let row = &pixels
@@ -1088,7 +1102,7 @@ impl Renderer {
                     .borrow()
                     .flush_mapped_memory_ranges(std::iter::once((
                         &image_upload_memory,
-                        0..upload_size,
+                        Segment::ALL,
                     )))
                     .unwrap();
                 self.device.borrow().unmap_memory(&image_upload_memory);
@@ -1360,14 +1374,15 @@ fn update_buffer<T: Copy>(
 
     let device = device.borrow();
     unsafe {
+        let segment = Segment { offset: buffer_offset, size: Some(data_len) };
         let mapping = device
-            .map_memory(buffer_memory, buffer_offset..(buffer_offset + data_len))
+            .map_memory(buffer_memory, segment.clone())
             .unwrap();
         std::ptr::copy_nonoverlapping(data.as_ptr() as *const u8, mapping, data_len as usize);
         device
             .flush_mapped_memory_ranges(std::iter::once((
                 buffer_memory,
-                buffer_offset..(buffer_offset + data_len),
+                segment,
             )))
             .unwrap();
         device.unmap_memory(buffer_memory);

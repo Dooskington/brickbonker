@@ -1,5 +1,12 @@
+use crate::physics::*;
 use gfx::{color::*, input::*, renderer::*, sprite::*, Point2f, Vector2f};
 use nalgebra::Vector2;
+use nphysics2d::object::{Ground, DefaultBodySet, DefaultColliderSet, BodyStatus, RigidBodyDesc, BodyPartHandle, ColliderDesc};
+use nphysics2d::force_generator::DefaultForceGeneratorSet;
+use nphysics2d::joint::DefaultJointConstraintSet;
+use nphysics2d::world::{DefaultMechanicalWorld, DefaultGeometricalWorld};
+use nphysics2d::math::{Velocity};
+use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 use shrev::EventChannel;
 use specs::prelude::*;
 use std::collections::HashMap;
@@ -33,10 +40,11 @@ const LEVEL_BRICKS_HEIGHT: usize = 10;
 pub struct GameState<'a, 'b> {
     pub world: World,
     pub tick_dispatcher: Dispatcher<'a, 'b>,
+    pub physics_dispatcher: Dispatcher<'a, 'b>,
 }
 
 impl<'a, 'b> GameState<'a, 'b> {
-    pub fn new() -> GameState<'a, 'b> {
+pub fn new() -> GameState<'a, 'b> {
         let mut world = World::new();
 
         // Components
@@ -46,6 +54,8 @@ impl<'a, 'b> GameState<'a, 'b> {
         world.register::<PlayerPaddleComponent>();
         world.register::<BoundingBoxComponent>();
         world.register::<BreakableComponent>();
+        world.register::<RigidbodyComponent>();
+        world.register::<ColliderComponent>();
 
         // Create paddle ent
         let paddle_ent = world
@@ -63,6 +73,7 @@ impl<'a, 'b> GameState<'a, 'b> {
                 h: PADDLE_BB_HEIGHT,
                 bb: None,
             })
+            .with(ColliderComponent {})
             .with(PlayerPaddleComponent::default())
             .with(SpriteComponent {
                 color: COLOR_WHITE,
@@ -133,6 +144,15 @@ impl<'a, 'b> GameState<'a, 'b> {
 
         tick_dispatcher.setup(&mut world);
 
+        let mut physics_dispatcher = DispatcherBuilder::new()
+            .with(RigidbodySendPhysicsSystem::default(), "rigidbody_send", &[])
+            .with(ColliderSendPhysicsSystem::default(), "collider_send", &[])
+            .with(WorldStepPhysicsSystem, "world_step", &["rigidbody_send", "collider_send"])
+            .with(RigidbodyReceivePhysicsSystem, "rigidbody_recv", &["world_step"])
+            .build();
+
+        physics_dispatcher.setup(&mut world);
+
         // Spawn the initial ball
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
@@ -144,9 +164,105 @@ impl<'a, 'b> GameState<'a, 'b> {
                 owning_paddle_ent: Some(paddle_ent),
             });
 
+        // TESTING Physics Stuff
+        /*
+        let gravity = Vector2::new(0.0, -9.81);
+        let mut mechanical_world = DefaultMechanicalWorld::new(gravity);
+        let mut geometrical_world = DefaultGeometricalWorld::new();
+
+        let mut bodies = DefaultBodySet::new();
+        let mut colliders = DefaultColliderSet::new();
+        let mut joint_constraints = DefaultJointConstraintSet::new();
+        let mut force_generators = DefaultForceGeneratorSet::new();
+
+        let ball = ShapeHandle::new(Ball::new(1.0));
+        let rigid_body = RigidBodyDesc::new()
+            .translation(Vector2::new(0.0, 0.0))
+            .rotation(0.0)
+            .gravity_enabled(false)
+            .status(BodyStatus::Dynamic)
+            .velocity(Velocity::linear(0.0, 5.0))
+            .max_linear_velocity(10.0)
+            .linear_motion_interpolation_enabled(true)
+            .user_data(10)
+            .build();
+
+        let rb_handle = bodies.insert(rigid_body);
+        let collider = ColliderDesc::new(ball.clone())
+            .density(0.0)
+            .set_ccd_enabled(true)
+            .build(BodyPartHandle(rb_handle, 0));
+        let collider_handle = colliders.insert(collider);
+
+        let ground_handle = bodies.insert(Ground::new());
+        let box_shape = ShapeHandle::new(Cuboid::new(Vector2::new(0.5, 0.5)));
+        let box_collider = ColliderDesc::new(box_shape.clone())
+            .density(0.0)
+            .translation(Vector2::y() * 5.0)
+            .set_ccd_enabled(true)
+            .build(BodyPartHandle(ground_handle, 0));
+        let box_collider_handle = colliders.insert(box_collider);
+
+        if let Some(body) = bodies.rigid_body(rb_handle) {
+            let pos = body.position().translation.vector;
+            println!("Pos before step: {:?}", pos * 32.0);
+        }
+
+        for i in 0 .. 500 {
+            mechanical_world.step(
+                &mut geometrical_world,
+                &mut bodies,
+                &mut colliders,
+                &mut joint_constraints,
+                &mut force_generators
+            );
+
+            for contact in geometrical_world.contact_events() {
+                println!("frame {}: got contact: {:?}", i, contact);
+            }
+        }
+
+        if let Some(body) = bodies.rigid_body(rb_handle) {
+            let pos = body.position().translation.vector;
+            println!("Pos after steps: {:?}", pos * 32.0);
+        }
+        */
+
+        // Big Lad Engine Physics v1
+        // ---
+        // RigidbodySendPhysicsSystem
+        // ColliderSendPhysicsSystem
+        // WorldStepPhysicsSystem
+        // RigidbodyReceivePhysicsSystem
+        //
+        // The send systems will need to listen for component change events from the
+        // TransformComponent and RigidbodyComponent and sync changes to the physics world.
+        // Then the world step system gets run.
+        // Then the rigidbody receive system will update rigidbodies
+        //
+        // Where are collisions handled?
+        // Probably in the world stepper system. They need to be converted into our own flavor
+        // of collision event, and then sent into some sort of EventChannel<CollisionEvent>
+        //
+        // Then, the BallSystem will look for these events and react accordingly
+        // The BreakableSystem can look for these events as well, for brick damage
+        //
+        // Will need some kind of physics dispatcher
+        // just create it here
+        // let's also offload this all into a physics.rs module
+        //
+        // 1. Create physics.rs
+        // 2. Create components
+        // 3. Create stubbed out systems
+        // 4. Create physics dispatcher and store in GameState
+        // 5. Tick physics at fixed rate
+
+        world.insert(PhysicsState::new());
+
         GameState {
             world,
             tick_dispatcher,
+            physics_dispatcher,
         }
     }
 }
@@ -307,7 +423,7 @@ pub struct TransformComponent {
 }
 
 impl Component for TransformComponent {
-    type Storage = VecStorage<Self>;
+    type Storage = FlaggedStorage<Self, VecStorage<Self>>;
 }
 
 #[derive(Debug)]
@@ -805,6 +921,11 @@ impl<'a> System<'a> for SpawnBallSystem {
                     is_held: event.owning_paddle_ent.is_some(),
                     did_hit_brick_this_tick: false,
                 },
+            );
+
+            lazy_updater.insert(
+                ent,
+                RigidbodyComponent::new()
             );
 
             if let Some(paddle_ent) = event.owning_paddle_ent {
