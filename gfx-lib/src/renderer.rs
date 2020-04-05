@@ -41,7 +41,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{Cursor, Read},
-    rc::Rc,
+    rc::Rc
 };
 
 pub(crate) type GfxInstance = ::backend::Instance;
@@ -854,11 +854,11 @@ impl Renderer {
         };
 
         let framebuffer = unsafe {
-            self.device
-                .borrow()
+            use std::borrow::Borrow;
+            RefCell::borrow(&self.device)
                 .create_framebuffer(
                     self.render_pass.as_ref().unwrap(),
-                    Some(surface_image),
+                    std::iter::once(surface_image.borrow()),
                     Extent {
                         width: self.dimensions.width,
                         height: self.dimensions.height,
