@@ -153,7 +153,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
 
             let ball = ShapeHandle::new(Ball::new(1.0));
             let rigid_body = RigidBodyDesc::new()
-                .translation(Vector2::new(transform.pos_x as f64 / 32.0, transform.pos_y as f64 / 32.0))
+                .translation(Vector2::new(transform.pos_x / 32.0, transform.pos_y / 32.0))
                 .rotation(0.0)
                 .gravity_enabled(false)
                 .status(BodyStatus::Dynamic)
@@ -276,7 +276,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             let (parent_body_handle, translation) = if let Some(rb_handle) = physics.ent_body_handles.get(&ent_id) {
                 (rb_handle.clone(), Vector2::<f64>::zeros())
             } else {
-                (physics.ground_body_handle.clone(), Vector2::<f64>::new(transform.pos_x as f64, transform.pos_y as f64))
+                (physics.ground_body_handle.clone(), Vector2::new(transform.pos_x, transform.pos_y))
             };
 
             let box_shape = ShapeHandle::new(Cuboid::new(Vector2::new(0.5, 0.5)));
@@ -345,21 +345,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
     fn run(&mut self, physics: Self::SystemData) {
         let mut physics = physics.0;
 
-        for (_, handle) in physics.ent_body_handles.iter() {
-            if let Some(body) = physics.bodies.rigid_body(*handle) {
-                let pos = body.position().translation.vector;
-                //println!("physics step: before: {}, {}", pos.x, pos.y)
-            }
-        }
-
         physics.step();
-
-        for (_, handle) in physics.ent_body_handles.iter() {
-            if let Some(body) = physics.bodies.rigid_body(*handle) {
-                let pos = body.position().translation.vector;
-                //println!("physics step: after: {}, {}", pos.x, pos.y)
-            }
-        }
 
         for contact in physics.geometrical_world.contact_events() {
             println!("Got contact: {:?}", contact);
@@ -381,13 +367,13 @@ impl<'a> System<'a> for RigidbodyReceivePhysicsSystem {
             if let Some(body) = physics.bodies.rigid_body(rigidbody.handle.unwrap()) {
                 transform.last_pos_x = transform.pos_x;
                 transform.last_pos_y = transform.pos_y;
-                //println!("before: {}, {}", transform.last_pos_x, transform.last_pos_y);
+                //println!("before: {}, {}", transform.last_pos_x / 32.0, transform.last_pos_y / 32.0);
 
                 let pos = body.position().translation.vector;
                 transform.pos_x = pos.x * 32.0;
                 transform.pos_y = pos.y * 32.0;
 
-                //println!("after: {}, {}", transform.pos_x, transform.pos_y);
+                //println!("after: {}, {}", pos.x, pos.y);
             }
         }
     }

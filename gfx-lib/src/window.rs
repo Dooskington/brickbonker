@@ -93,20 +93,8 @@ pub fn run<T>(
                     renderer.rebuild_swapchain();
                 }
 
-                /*
-                let snapped_delta_time_seconds = {
-                    let dt = frame_time.as_secs_f64();
-                    let dt_secs = (dt - target_dt).abs();
-                    if dt_secs < 0.0002 {
-                        //target_dt
-                        dt
-                    } else {
-                        dt
-                    }
-                };
-                */
-
                 let dt = frame_time.as_secs_f64();
+
                 accumulator += dt;
                 while accumulator >= target_dt {
                     tick_callback(&mut app_state, &input_state);
@@ -115,7 +103,6 @@ pub fn run<T>(
                     accumulator -= target_dt;
                     time += target_dt;
                     ticks += 1;
-
                     fps_counter += 1;
                 }
 

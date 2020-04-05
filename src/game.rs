@@ -66,7 +66,7 @@ pub fn new() -> GameState<'a, 'b> {
                 &["player_paddle", "ball_physics"],
             )
             .with_thread_local(SpawnBallSystem::default())
-            .with_thread_local(SpriteRenderSystem {})
+            .with_thread_local(SpriteRenderSystem::default())
             .build();
 
         tick_dispatcher.setup(&mut world);
@@ -81,6 +81,7 @@ pub fn new() -> GameState<'a, 'b> {
         physics_dispatcher.setup(&mut world);
 
         // Spawn paddle ent
+        /*
         let paddle_ent = world
             .create_entity()
             .with(TransformComponent {
@@ -111,7 +112,7 @@ pub fn new() -> GameState<'a, 'b> {
                 },
             })
             .build();
-
+            */
         // Spawn brick ents
         /*
         for x in 0..LEVEL_BRICKS_WIDTH {
@@ -149,6 +150,38 @@ pub fn new() -> GameState<'a, 'b> {
         }
         */
 
+        /*
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 64.0
+                pos_y: 400.0,
+                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
+                origin: Point2f::new(0.0, 16.0),
+            })
+            .with(BoundingBoxComponent {
+                x: 0.0,
+                y: 0.0,
+                w: 32.0,
+                h: 16.0,
+                bb: None,
+            })
+            .with(BreakableComponent {
+                hp: DEFAULT_BRICK_HP,
+            })
+            .with(SpriteComponent {
+                color: COLOR_WHITE,
+                spritesheet_tex_id: 2,
+                region: SpriteRegion {
+                    x: 96,
+                    y: 0,
+                    w: BRICK_SPRITE_WIDTH,
+                    h: BRICK_SPRITE_HEIGHT,
+                },
+            })
+            .build();
+        */
+
         // Spawn the initial ball
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
@@ -161,7 +194,6 @@ pub fn new() -> GameState<'a, 'b> {
                 owning_paddle_ent: None,
             });
 
-        /*
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
@@ -183,7 +215,7 @@ pub fn new() -> GameState<'a, 'b> {
                 //owning_paddle_ent: Some(paddle_ent),
                 owning_paddle_ent: None,
             });
-        */
+
         // TESTING Physics Stuff
         /*
         let gravity = Vector2::new(0.0, -9.81);
@@ -554,6 +586,7 @@ impl<'a> System<'a> for PlayerPaddleSystem {
     }
 }
 
+#[derive(Default)]
 struct SpriteRenderSystem;
 
 impl<'a> System<'a> for SpriteRenderSystem {
@@ -568,6 +601,8 @@ impl<'a> System<'a> for SpriteRenderSystem {
         for (transform, sprite) in (&transforms, &sprites).join() {
             let x = (transform.pos_x * physics.lerp) + (transform.last_pos_x * (1.0 - physics.lerp));
             let y = (transform.pos_y * physics.lerp) + (transform.last_pos_y * (1.0 - physics.lerp));
+            //let x = transform.pos_x;
+            //let y = transform.pos_y;
 
             render.bind_texture(sprite.spritesheet_tex_id);
             render.bind_color(sprite.color);
