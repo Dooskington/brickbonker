@@ -23,8 +23,8 @@ const PADDLE_SCALE_Y: f32 = 1.0;
 const DEFAULT_BALL_FORCE: f32 = 2.0;
 const BALL_SPRITE_WIDTH: u32 = 32;
 const BALL_SPRITE_HEIGHT: u32 = 32;
-const BALL_SCALE_X: f32 = 1.0;
-const BALL_SCALE_Y: f32 = 1.0;
+const BALL_SCALE_X: f32 = 2.0;
+const BALL_SCALE_Y: f32 = 2.0;
 const BALL_BB_RADIUS: f32 = 5.0;
 const BALL_MAX_AXIS_VELOCITY: f32 = 6.5;
 
@@ -57,12 +57,37 @@ pub fn new() -> GameState<'a, 'b> {
         world.register::<RigidbodyComponent>();
         world.register::<ColliderComponent>();
 
-        // Create paddle ent
+        let mut tick_dispatcher = DispatcherBuilder::new()
+            .with(BallPhysicsSystem, "ball_physics", &[])
+            .with(PlayerPaddleSystem, "player_paddle", &[])
+            .with(
+                BoundingBoxSystem,
+                "bounding_box",
+                &["player_paddle", "ball_physics"],
+            )
+            .with_thread_local(SpawnBallSystem::default())
+            .with_thread_local(SpriteRenderSystem {})
+            .build();
+
+        tick_dispatcher.setup(&mut world);
+
+        let mut physics_dispatcher = DispatcherBuilder::new()
+            .with_thread_local(RigidbodySendPhysicsSystem::default())
+            .with_thread_local(ColliderSendPhysicsSystem::default())
+            .with_thread_local(WorldStepPhysicsSystem)
+            .with_thread_local(RigidbodyReceivePhysicsSystem)
+            .build();
+
+        physics_dispatcher.setup(&mut world);
+
+        // Spawn paddle ent
         let paddle_ent = world
             .create_entity()
             .with(TransformComponent {
                 pos_x: 64.0,
                 pos_y: 470.0,
+                last_pos_x: 64.0,
+                last_pos_y: 470.0,
                 origin: Point2f::new(32.0, 20.0),
                 scale: Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
             })
@@ -73,7 +98,7 @@ pub fn new() -> GameState<'a, 'b> {
                 h: PADDLE_BB_HEIGHT,
                 bb: None,
             })
-            .with(ColliderComponent {})
+            //.with(ColliderComponent::new())
             .with(PlayerPaddleComponent::default())
             .with(SpriteComponent {
                 color: COLOR_WHITE,
@@ -87,7 +112,8 @@ pub fn new() -> GameState<'a, 'b> {
             })
             .build();
 
-        // Create brick ents
+        // Spawn brick ents
+        /*
         for x in 0..LEVEL_BRICKS_WIDTH {
             for y in 0..LEVEL_BRICKS_HEIGHT {
                 world
@@ -121,49 +147,43 @@ pub fn new() -> GameState<'a, 'b> {
                     .build();
             }
         }
-
-        // Resources
-        world.insert(RenderCommander::new());
-        world.insert(WorldBoundingBoxState::default());
-        world.insert(LevelState {
-            level: 1,
-            player_paddle_ent: Some(paddle_ent),
-        });
-
-        let mut tick_dispatcher = DispatcherBuilder::new()
-            .with(BallPhysicsSystem, "ball_physics", &[])
-            .with(PlayerPaddleSystem, "player_paddle", &[])
-            .with(
-                BoundingBoxSystem,
-                "bounding_box",
-                &["player_paddle", "ball_physics"],
-            )
-            .with_thread_local(SpawnBallSystem::default())
-            .with_thread_local(SpriteRenderSystem {})
-            .build();
-
-        tick_dispatcher.setup(&mut world);
-
-        let mut physics_dispatcher = DispatcherBuilder::new()
-            .with(RigidbodySendPhysicsSystem::default(), "rigidbody_send", &[])
-            .with(ColliderSendPhysicsSystem::default(), "collider_send", &[])
-            .with(WorldStepPhysicsSystem, "world_step", &["rigidbody_send", "collider_send"])
-            .with(RigidbodyReceivePhysicsSystem, "rigidbody_recv", &["world_step"])
-            .build();
-
-        physics_dispatcher.setup(&mut world);
+        */
 
         // Spawn the initial ball
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
-                pos_x: 0.0,
+                pos_x: 64.0,
                 pos_y: 0.0,
                 vel_x: 0.0,
-                vel_y: 0.0,
-                owning_paddle_ent: Some(paddle_ent),
+                vel_y: 2.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
             });
 
+        /*
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 128.0,
+                pos_y: 0.0,
+                vel_x: 0.0,
+                vel_y: 1.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 192.0,
+                pos_y: 0.0,
+                vel_x: 0.0,
+                vel_y: 4.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+        */
         // TESTING Physics Stuff
         /*
         let gravity = Vector2::new(0.0, -9.81);
@@ -228,35 +248,14 @@ pub fn new() -> GameState<'a, 'b> {
         }
         */
 
-        // Big Lad Engine Physics v1
-        // ---
-        // RigidbodySendPhysicsSystem
-        // ColliderSendPhysicsSystem
-        // WorldStepPhysicsSystem
-        // RigidbodyReceivePhysicsSystem
-        //
-        // The send systems will need to listen for component change events from the
-        // TransformComponent and RigidbodyComponent and sync changes to the physics world.
-        // Then the world step system gets run.
-        // Then the rigidbody receive system will update rigidbodies
-        //
-        // Where are collisions handled?
-        // Probably in the world stepper system. They need to be converted into our own flavor
-        // of collision event, and then sent into some sort of EventChannel<CollisionEvent>
-        //
-        // Then, the BallSystem will look for these events and react accordingly
-        // The BreakableSystem can look for these events as well, for brick damage
-        //
-        // Will need some kind of physics dispatcher
-        // just create it here
-        // let's also offload this all into a physics.rs module
-        //
-        // 1. Create physics.rs
-        // 2. Create components
-        // 3. Create stubbed out systems
-        // 4. Create physics dispatcher and store in GameState
-        // 5. Tick physics at fixed rate
-
+        // Resources
+        world.insert(RenderCommander::new());
+        world.insert(WorldBoundingBoxState::default());
+        world.insert(LevelState {
+            level: 1,
+            player_paddle_ent: None,
+            //player_paddle_ent: Some(paddle_ent),
+        });
         world.insert(PhysicsState::new());
 
         GameState {
@@ -269,10 +268,10 @@ pub fn new() -> GameState<'a, 'b> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpawnBallEvent {
-    pub pos_x: f32,
-    pub pos_y: f32,
-    pub vel_x: f32,
-    pub vel_y: f32,
+    pub pos_x: f64,
+    pub pos_y: f64,
+    pub vel_x: f64,
+    pub vel_y: f64,
     pub owning_paddle_ent: Option<Entity>,
 }
 
@@ -416,8 +415,10 @@ impl RenderCommander {
 
 #[derive(Debug)]
 pub struct TransformComponent {
-    pub pos_x: f32,
-    pub pos_y: f32,
+    pub pos_x: f64,
+    pub pos_y: f64,
+    pub last_pos_x: f64,
+    pub last_pos_y: f64,
     pub origin: Point2f,
     pub scale: Vector2f,
 }
@@ -429,8 +430,8 @@ impl Component for TransformComponent {
 #[derive(Debug)]
 pub struct BallComponent {
     pub last_pos: Point2f,
-    vel_x: f32,
-    vel_y: f32,
+    vel_x: f64,
+    vel_y: f64,
     is_held: bool,
     did_hit_brick_this_tick: bool,
 }
@@ -511,20 +512,23 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                 paddle.vel_x += speed;
             }
 
-            transform.pos_x += paddle.vel_x;
+            transform.pos_x += paddle.vel_x as f64;
 
-            if transform.pos_x < (PADDLE_SPRITE_WIDTH as f32 / 2.0) {
-                transform.pos_x = PADDLE_SPRITE_WIDTH as f32 / 2.0;
-            } else if transform.pos_x > (640.0 - (PADDLE_SPRITE_WIDTH as f32 / 2.0)) {
-                transform.pos_x = 640.0 - (PADDLE_SPRITE_WIDTH as f32 / 2.0);
+            if transform.pos_x < (PADDLE_SPRITE_WIDTH as f64 / 2.0) {
+                transform.pos_x = PADDLE_SPRITE_WIDTH as f64 / 2.0;
+            } else if transform.pos_x > (640.0 - (PADDLE_SPRITE_WIDTH as f64 / 2.0)) {
+                transform.pos_x = 640.0 - (PADDLE_SPRITE_WIDTH as f64 / 2.0);
             }
 
-            paddle.held_ball_pos_x = transform.pos_x;
+            /*
+            paddle.held_ball_pos_x = transform.pos_x as f64;
             paddle.held_ball_pos_y =
-                transform.pos_y - (PADDLE_BB_HEIGHT as f32 * PADDLE_SCALE_Y) - BALL_BB_RADIUS;
+                transform.pos_y - (PADDLE_BB_HEIGHT as f64 * PADDLE_SCALE_Y) - BALL_BB_RADIUS;
+            */
         }
 
         // Handle paddles that are holding a ball
+        /*
         for mut paddle in (&mut paddles).join() {
             if let Some(ball_ent) = paddle.held_ball_ent {
                 let ball_transform = transforms.get_mut(ball_ent).expect(
@@ -546,6 +550,7 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                 }
             }
         }
+        */
     }
 }
 
@@ -553,18 +558,22 @@ struct SpriteRenderSystem;
 
 impl<'a> System<'a> for SpriteRenderSystem {
     type SystemData = (
+        ReadExpect<'a, PhysicsState>,
         Write<'a, RenderCommander>,
         ReadStorage<'a, TransformComponent>,
         ReadStorage<'a, SpriteComponent>,
     );
 
-    fn run(&mut self, (mut render, transforms, sprites): Self::SystemData) {
+    fn run(&mut self, (physics, mut render, transforms, sprites): Self::SystemData) {
         for (transform, sprite) in (&transforms, &sprites).join() {
+            let x = (transform.pos_x * physics.lerp) + (transform.last_pos_x * (1.0 - physics.lerp));
+            let y = (transform.pos_y * physics.lerp) + (transform.last_pos_y * (1.0 - physics.lerp));
+
             render.bind_texture(sprite.spritesheet_tex_id);
             render.bind_color(sprite.color);
             render.sprite(
-                transform.pos_x,
-                transform.pos_y,
+                x as f32,
+                y as f32,
                 transform.origin,
                 transform.scale,
                 sprite.region,
@@ -610,31 +619,33 @@ impl<'a> System<'a> for BallPhysicsSystem {
             // Check for wall collisions
             if transform.pos_x < 0.0 {
                 transform.pos_x = 0.0;
-                ball.vel_x = ball.vel_x.abs() * 1.1;
+                //ball.vel_x = ball.vel_x.abs() * 1.1;
             } else if transform.pos_x > 640.0 {
                 transform.pos_x = 640.0;
-                ball.vel_x = ball.vel_x.abs() * -1.1;
+                //ball.vel_x = ball.vel_x.abs() * -1.1;
             }
             // Check for ceiling colision
             else if transform.pos_y < 0.0 {
                 transform.pos_y = 0.0;
-                ball.vel_y = ball.vel_y.abs() * 1.1;
+                //ball.vel_y = ball.vel_y.abs() * 1.1;
             }
             // Check for out of bounds (below paddle)
             else if transform.pos_y > 480.0 {
                 transform.pos_y = 480.0;
-                ball.vel_x = 0.0;
-                ball.vel_y = 0.0;
+                //ball.vel_x = 0.0;
+                //ball.vel_y = 0.0;
 
                 ents.delete(ent).expect("Failed to delete ball ent!");
                 spawn_ball_events.single_write(SpawnBallEvent {
-                    pos_x: 0.0,
+                    pos_x: transform.pos_x,
                     pos_y: 0.0,
-                    vel_x: 0.0,
-                    vel_y: 0.0,
-                    owning_paddle_ent: level.player_paddle_ent,
+                    vel_x: ball.vel_x,
+                    vel_y: ball.vel_y,
+                    //owning_paddle_ent: level.player_paddle_ent,
+                    owning_paddle_ent: None,
                 });
             }
+            /*
             // Check for brick collisions
             else {
                 let ball_center = Point2f::new(transform.pos_x, transform.pos_y);
@@ -750,6 +761,7 @@ impl<'a> System<'a> for BallPhysicsSystem {
 
             transform.pos_x += ball.vel_x;
             transform.pos_y += ball.vel_y;
+            */
         }
     }
 }
@@ -830,6 +842,7 @@ impl<'a> System<'a> for BoundingBoxSystem {
         &mut self,
         (ents, mut world_bounding_boxes, transforms, mut bounding_boxes): Self::SystemData,
     ) {
+        /*
         for (ent, transform, bounding_box) in (&ents, &transforms, &mut bounding_boxes).join() {
             let x = transform.pos_x - (transform.origin.x as f32 * transform.scale.x);
             let y = transform.pos_y - (transform.origin.y as f32 * transform.scale.y);
@@ -859,6 +872,7 @@ impl<'a> System<'a> for BoundingBoxSystem {
                 world_bounding_boxes.boxes.remove(ent);
             }
         }
+        */
     }
 }
 
@@ -893,6 +907,8 @@ impl<'a> System<'a> for SpawnBallSystem {
                 TransformComponent {
                     pos_x: event.pos_x,
                     pos_y: event.pos_y,
+                    last_pos_x: event.pos_x,
+                    last_pos_y: event.pos_y,
                     origin: Point2f::new(16.0, 16.0),
                     scale: Vector2f::new(BALL_SCALE_X, BALL_SCALE_Y),
                 },
@@ -925,7 +941,12 @@ impl<'a> System<'a> for SpawnBallSystem {
 
             lazy_updater.insert(
                 ent,
-                RigidbodyComponent::new()
+                RigidbodyComponent::new(Vector2::new(event.vel_x, event.vel_y))
+            );
+
+            lazy_updater.insert(
+                ent,
+                ColliderComponent::new()
             );
 
             if let Some(paddle_ent) = event.owning_paddle_ent {

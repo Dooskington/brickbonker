@@ -11,6 +11,7 @@ use gfx::{
     texture::*,
     window,
 };
+use physics::PhysicsState;
 use specs::prelude::*;
 
 fn main() {
@@ -38,7 +39,8 @@ fn main() {
             game.physics_dispatcher.dispatch(&mut game.world);
             game.world.maintain();
         },
-        move |game, ticks, renderer| {
+        move |game, ticks, lerp, renderer| {
+            game.world.write_resource::<PhysicsState>().lerp = lerp;
             // Process commands into batches and send to the renderer
             let commands = game.world.write_resource::<RenderCommander>().commands();
             let batches = renderer.process_commands(commands);

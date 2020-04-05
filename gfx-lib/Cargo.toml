@@ -9,7 +9,6 @@ winit = { git = "https://github.com/rust-windowing/winit" }
 nalgebra = "0.20.0"
 nalgebra-glm = "0.6.0"
 image = "0.22.3"
-time = "0.2.7"
 
 [dependencies.gfx-hal]
 version = "0.5.0"

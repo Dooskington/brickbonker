@@ -10,7 +10,6 @@ extern crate gfx_backend_vulkan as backend;
 pub extern crate image;
 extern crate gfx_hal;
 extern crate nalgebra_glm as glm;
-extern crate time;
 extern crate winit;
 
 pub mod color;

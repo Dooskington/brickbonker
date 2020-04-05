@@ -6,7 +6,7 @@ use ::winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use time::{Duration, Instant};
+use std::time::{Duration, Instant};
 
 pub use ::winit::window::Window as WinitWindow;
 
@@ -19,7 +19,7 @@ pub fn run<T>(
     app_state: T,
     init_callback: impl FnMut(&mut T, &mut Renderer) + 'static,
     tick_callback: impl FnMut(&mut T, &InputState) + 'static,
-    render_callback: impl FnMut(&T, u128, &mut Renderer) + 'static,
+    render_callback: impl FnMut(&T, u128, f64, &mut Renderer) + 'static,
 ) where
     T: 'static,
 {
@@ -40,8 +40,8 @@ pub fn run<T>(
     let mut input_state: InputState = InputState::new();
     let mut app_state: T = app_state;
 
-    let one_second: Duration = Duration::seconds(1);
-    let mut fps_timer: Duration = Duration::zero();
+    let one_second: Duration = Duration::from_secs(1);
+    let mut fps_timer: Duration = Duration::from_secs(0);
     let mut fps_counter: u32 = 0;
     let mut fps: u32 = 0;
 
@@ -49,7 +49,7 @@ pub fn run<T>(
     let mut time: f64 = 0.0;
     let mut current_time = Instant::now();
     let mut accumulator: f64 = 0.0;
-    let mut frame_time: Duration = Duration::zero();
+    let mut frame_time: Duration = Duration::from_secs(0);
 
     let mut ticks: u128 = 0;
     let mut is_initialized = false;
@@ -93,20 +93,24 @@ pub fn run<T>(
                     renderer.rebuild_swapchain();
                 }
 
-                // To avoid timing inconsistencies and errors, snap the delta time to the target delta time if it is within some small threshold.
-                let snapped_delta_time_ms = {
-                    let millis = frame_time.whole_microseconds() as f64 / 1000.0;
-                    if (millis.abs() - target_dt) < 0.0002 {
-                        target_dt
+                /*
+                let snapped_delta_time_seconds = {
+                    let dt = frame_time.as_secs_f64();
+                    let dt_secs = (dt - target_dt).abs();
+                    if dt_secs < 0.0002 {
+                        //target_dt
+                        dt
                     } else {
-                        millis
+                        dt
                     }
                 };
+                */
 
-                let snapped_delta_time_seconds = snapped_delta_time_ms / 1000.0;
-                accumulator += snapped_delta_time_seconds;
+                let dt = frame_time.as_secs_f64();
+                accumulator += dt;
                 while accumulator >= target_dt {
                     tick_callback(&mut app_state, &input_state);
+                    input_state.clear_pressed_and_released();
 
                     accumulator -= target_dt;
                     time += target_dt;
@@ -115,22 +119,18 @@ pub fn run<T>(
                     fps_counter += 1;
                 }
 
-                // Frame is over, clear temporary input state
-                input_state.clear_pressed_and_released();
-
                 fps_timer = fps_timer + frame_time;
                 if fps_timer >= one_second {
-                    fps_timer = time::Duration::zero();
+                    fps_timer = std::time::Duration::from_secs(0);
                     fps = fps_counter;
                     fps_counter = 0;
 
                     println!("FPS: {}", fps);
                 }
 
+                let lerp = accumulator / target_dt;
+                render_callback(&app_state, ticks, lerp, &mut renderer);
                 window.request_redraw();
-            }
-            WinitEvent::RedrawRequested(_) => {
-                render_callback(&app_state, ticks, &mut renderer);
             }
             _ => (),
         }
