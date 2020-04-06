@@ -9,8 +9,9 @@ use gfx::{
     renderer::*,
     sprite::*,
     texture::*,
-    window,
+    window::{self, *},
 };
+use nalgebra::{Point2, Vector2};
 use physics::PhysicsState;
 use specs::prelude::*;
 
@@ -28,9 +29,11 @@ fn main() {
         move |game, renderer| {
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
+            import_texture(3, "res/textures/font.png", renderer);
         },
-        move |game, input| {
+        move |game, _window, input, dt| {
             game.world.insert::<InputState>(input.clone());
+            game.world.insert::<DeltaTime>(dt);
 
             game.world
                 .write_resource::<RenderCommander>()
@@ -39,12 +42,40 @@ fn main() {
             game.physics_dispatcher.dispatch(&mut game.world);
             game.world.maintain();
         },
-        move |game, ticks, lerp, renderer| {
+        move |game, ticks, lerp, window, renderer| {
             game.world.write_resource::<PhysicsState>().lerp = lerp;
             // Process commands into batches and send to the renderer
-            let commands = game.world.write_resource::<RenderCommander>().commands();
+            let mut commands = game.world.write_resource::<RenderCommander>().commands();
+
+            let msg = format!("FPS: {}, Ticks: {}", window.fps, ticks);
+            for (i, c) in msg.chars().enumerate() {
+                let cols: u32 = 16;
+                let ascii: u8 = c as u8;
+                let sprite_col: u32 = ascii as u32 % cols;
+                let sprite_row: u32 = ascii as u32 / cols;
+                commands.push(gfx::renderer::RenderCommand {
+                    transparency: Transparency::Transparent,
+                    shader_program_id: 1,
+                    tex_id: 3,
+                    layer: 0,
+                    data: Renderable::Sprite {
+                        x: 32.0 + (i as f32 * 8.0),
+                        y: 32.0,
+                        origin: Point2::origin(),
+                        scale: Vector2::new(1.0, 1.0),
+                        color: COLOR_WHITE,
+                        region: SpriteRegion {
+                            x: sprite_col * 8,
+                            y: sprite_row * 16,
+                            w: 8,
+                            h: 16,
+                        },
+                    },
+                });
+            }
+
             let batches = renderer.process_commands(commands);
-            renderer.render(batches);
+            renderer.render(window.scale_factor, batches);
         },
     );
 }

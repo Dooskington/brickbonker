@@ -838,7 +838,7 @@ impl Renderer {
         batch_keys
     }
 
-    pub fn render(&mut self, batch_keys: Vec<RenderKey>) {
+    pub fn render(&mut self, scale_factor: f32, batch_keys: Vec<RenderKey>) {
         if self.surface.is_none() {
             panic!("Failed to render: Renderer surface was None!");
         }
@@ -885,9 +885,9 @@ impl Renderer {
 
         let projection = glm::ortho(
             0.0,
-            self.dimensions.width as f32,
+            self.dimensions.width as f32 / scale_factor,
             0.0,
-            self.dimensions.height as f32,
+            self.dimensions.height as f32 / scale_factor,
             -1.0,
             100.0,
         );

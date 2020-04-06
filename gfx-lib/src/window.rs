@@ -12,14 +12,21 @@ pub use ::winit::window::Window as WinitWindow;
 
 const SIXTY_FPS_DT: f64 = 1.0 / 60.0;
 
+pub struct WindowState {
+    pub fps: u32,
+    pub scale_factor: f32,
+}
+
+pub type DeltaTime = f64;
+
 pub fn run<T>(
     title: &str,
     width: u32,
     height: u32,
     app_state: T,
     init_callback: impl FnMut(&mut T, &mut Renderer) + 'static,
-    tick_callback: impl FnMut(&mut T, &InputState) + 'static,
-    render_callback: impl FnMut(&T, u128, f64, &mut Renderer) + 'static,
+    tick_callback: impl FnMut(&mut T, &WindowState, &InputState, DeltaTime) + 'static,
+    render_callback: impl FnMut(&T, u128, f64, &WindowState, &mut Renderer) + 'static,
 ) where
     T: 'static,
 {
@@ -36,14 +43,17 @@ pub fn run<T>(
     let mut tick_callback = Box::new(tick_callback);
     let mut render_callback = Box::new(render_callback);
 
+    let mut app_state: T = app_state;
     let mut renderer: Renderer = Renderer::new(&window);
     let mut input_state: InputState = InputState::new();
-    let mut app_state: T = app_state;
+    let mut window_state = WindowState {
+        fps: 0,
+        scale_factor: window.scale_factor() as f32,
+    };
 
     let one_second: Duration = Duration::from_secs(1);
     let mut fps_timer: Duration = Duration::from_secs(0);
     let mut fps_counter: u32 = 0;
-    let mut fps: u32 = 0;
 
     let target_dt: f64 = SIXTY_FPS_DT;
     let mut time: f64 = 0.0;
@@ -52,7 +62,10 @@ pub fn run<T>(
     let mut frame_time: Duration = Duration::from_secs(0);
 
     let mut ticks: u128 = 0;
-    let mut is_initialized = false;
+
+    init_callback(&mut app_state, &mut renderer);
+    renderer.rebuild_swapchain();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
@@ -67,6 +80,13 @@ pub fn run<T>(
                     println!("[Window] Resized to ({}, {})", size.width, size.height);
 
                     renderer.resize(size.width, size.height);
+                    window.request_redraw();
+                }
+                WinitWindowEvent::ScaleFactorChanged { scale_factor, new_inner_size } => {
+                    println!("[Window] Scale factor changed to {}. New inner size = {:?}", scale_factor, new_inner_size);
+
+                    window_state.scale_factor = scale_factor as f32;
+                    renderer.resize(new_inner_size.width, new_inner_size.height);
                     window.request_redraw();
                 }
                 WinitWindowEvent::KeyboardInput { input, is_synthetic, .. } => {
@@ -86,18 +106,10 @@ pub fn run<T>(
                 frame_time = new_time - current_time;
                 current_time = new_time;
 
-                if !is_initialized {
-                    init_callback(&mut app_state, &mut renderer);
-                    is_initialized = true;
-
-                    renderer.rebuild_swapchain();
-                }
-
                 let dt = frame_time.as_secs_f64();
-
                 accumulator += dt;
                 while accumulator >= target_dt {
-                    tick_callback(&mut app_state, &input_state);
+                    tick_callback(&mut app_state, &window_state, &input_state, dt);
                     input_state.clear_pressed_and_released();
 
                     accumulator -= target_dt;
@@ -109,14 +121,12 @@ pub fn run<T>(
                 fps_timer = fps_timer + frame_time;
                 if fps_timer >= one_second {
                     fps_timer = std::time::Duration::from_secs(0);
-                    fps = fps_counter;
+                    window_state.fps = fps_counter;
                     fps_counter = 0;
-
-                    println!("FPS: {}", fps);
                 }
 
                 let lerp = accumulator / target_dt;
-                render_callback(&app_state, ticks, lerp, &mut renderer);
+                render_callback(&app_state, ticks, lerp, &window_state, &mut renderer);
                 window.request_redraw();
             }
             _ => (),
