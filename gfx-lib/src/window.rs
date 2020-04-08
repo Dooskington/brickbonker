@@ -14,7 +14,8 @@ const SIXTY_FPS_DT: f64 = 1.0 / 60.0;
 
 pub struct WindowState {
     pub fps: u32,
-    pub scale_factor: f32,
+    pub window_scale: f32,
+    pub dpi_scale_factor: f32,
 }
 
 pub type DeltaTime = f64;
@@ -23,6 +24,7 @@ pub fn run<T>(
     title: &str,
     width: u32,
     height: u32,
+    render_scale: f32,
     app_state: T,
     init_callback: impl FnMut(&mut T, &mut Renderer) + 'static,
     tick_callback: impl FnMut(&mut T, &WindowState, &InputState, DeltaTime) + 'static,
@@ -31,10 +33,11 @@ pub fn run<T>(
     T: 'static,
 {
     let event_loop = EventLoop::new();
+    let window_size = LogicalSize::new((width as f32 * render_scale) as u32, (height as f32 * render_scale) as u32);
     let window: WinitWindow = WindowBuilder::new()
         .with_title(title)
-        .with_min_inner_size(LogicalSize::new(width, height))
-        .with_inner_size(LogicalSize::new(width, height))
+        .with_min_inner_size(window_size)
+        .with_inner_size(window_size)
         .with_resizable(false)
         .build(&event_loop)
         .expect("Failed to create window!");
@@ -44,11 +47,12 @@ pub fn run<T>(
     let mut render_callback = Box::new(render_callback);
 
     let mut app_state: T = app_state;
-    let mut renderer: Renderer = Renderer::new(&window);
+    let mut renderer: Renderer = Renderer::new(&window, render_scale);
     let mut input_state: InputState = InputState::new();
     let mut window_state = WindowState {
         fps: 0,
-        scale_factor: window.scale_factor() as f32,
+        window_scale: render_scale,
+        dpi_scale_factor: window.scale_factor() as f32,
     };
 
     let one_second: Duration = Duration::from_secs(1);
@@ -79,14 +83,14 @@ pub fn run<T>(
                 WinitWindowEvent::Resized(size) => {
                     println!("[Window] Resized to ({}, {})", size.width, size.height);
 
-                    renderer.resize(size.width, size.height);
+                    renderer.resize(size.width, size.height, render_scale);
                     window.request_redraw();
                 }
                 WinitWindowEvent::ScaleFactorChanged { scale_factor, new_inner_size } => {
                     println!("[Window] Scale factor changed to {}. New inner size = {:?}", scale_factor, new_inner_size);
 
-                    window_state.scale_factor = scale_factor as f32;
-                    renderer.resize(new_inner_size.width, new_inner_size.height);
+                    window_state.dpi_scale_factor = scale_factor as f32;
+                    renderer.resize(new_inner_size.width, new_inner_size.height, render_scale);
                     window.request_redraw();
                 }
                 WinitWindowEvent::KeyboardInput { input, is_synthetic, .. } => {

@@ -389,7 +389,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(window: &WinitWindow) -> Renderer {
+    pub fn new(window: &WinitWindow, render_scale: f32) -> Renderer {
         // Create an instance, which is the entry point to the graphics API.
         let instance =
             GfxInstance::create("gfx-rs", 1).expect("Failed to create backend instance!");
@@ -557,8 +557,8 @@ impl Renderer {
 
         let window_inner_size = window.inner_size();
         let dimensions = Extent2D {
-            width: window_inner_size.width,
-            height: window_inner_size.height,
+            width: (window_inner_size.width as f32 / render_scale) as u32,
+            height: (window_inner_size.height as f32 / render_scale) as u32,
         };
 
         let viewport = pso::Viewport {
@@ -597,10 +597,10 @@ impl Renderer {
         }
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32, scale: f32) {
         self.dimensions = Extent2D {
-            width,
-            height,
+            width: (width as f32 / scale) as u32,
+            height: (height as f32 / scale) as u32,
         };
 
         self.rebuild_swapchain();

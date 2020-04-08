@@ -17,18 +17,16 @@ use specs::prelude::*;
 
 fn main() {
     let window_title: &str = "Brickbreaker";
-    let window_width: u32 = 640;
-    let window_height: u32 = 480;
-    let state = GameState::new();
-
-    // Need to pass in a resolution and scale
-    // then create a window with the scale
-    // and projection with the original resolution?
+    let window_width: u32 = 320;
+    let window_height: u32 = 240;
+    let render_scale: f32 = 2.0;
+    let state = GameState::new(window_width, window_height);
 
     window::run(
         window_title,
         window_width,
         window_height,
+        render_scale,
         state,
         move |game, renderer| {
             import_texture(1, "res/textures/costanza.png", renderer);
@@ -51,7 +49,7 @@ fn main() {
             // Process commands into batches and send to the renderer
             let mut commands = game.world.write_resource::<RenderCommander>().commands();
 
-            let msg = format!("FPS: {}, Ticks: {}", window.fps, ticks);
+            let msg = format!("{}", window.fps);
             for (i, c) in msg.chars().enumerate() {
                 let cols: u32 = 16;
                 let ascii: u8 = c as u8;
@@ -63,10 +61,10 @@ fn main() {
                     tex_id: 3,
                     layer: 0,
                     data: Renderable::Sprite {
-                        x: 32.0 + (i as f32 * 8.0),
-                        y: 32.0,
+                        x: 8.0 + (i as f32 * 4.0),
+                        y: 8.0,
                         origin: Point2::origin(),
-                        scale: Vector2::new(1.0, 1.0),
+                        scale: Vector2::new(0.5, 0.5),
                         color: COLOR_WHITE,
                         region: SpriteRegion {
                             x: sprite_col * 8,
@@ -79,7 +77,7 @@ fn main() {
             }
 
             let batches = renderer.process_commands(commands);
-            renderer.render(window.scale_factor, batches);
+            renderer.render(window.dpi_scale_factor, batches);
         },
     );
 }

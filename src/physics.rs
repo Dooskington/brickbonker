@@ -27,8 +27,7 @@ pub struct CollisionEvent {
     pub collider_handle_a: DefaultColliderHandle,
     pub entity_b: Option<Entity>,
     pub collider_handle_b: DefaultColliderHandle,
-    pub normal: Vector2<f64>,
-    pub depth: f64,
+    pub normal: Option<Vector2<f64>>,
     pub ty: CollisionType,
 }
 
@@ -58,7 +57,7 @@ impl PhysicsState {
 
         mechanical_world
             .integration_parameters
-            .max_ccd_substeps = 2;
+            .max_ccd_substeps = 1;
 
         let geometrical_world = DefaultGeometricalWorld::new();
         let joint_constraints = DefaultJointConstraintSet::new();
@@ -98,16 +97,18 @@ pub struct RigidbodyComponent {
     pub last_velocity: Velocity<f64>,
     pub handle: Option<DefaultBodyHandle>,
     pub max_linear_velocity: f64,
+    pub mass: f64,
 }
 
 impl RigidbodyComponent {
-    pub fn new(velocity: Vector2<f64>) -> Self {
+    pub fn new(mass: f64, velocity: Vector2<f64>) -> Self {
         let velocity = Velocity::new(velocity, 0.0);
         RigidbodyComponent {
             velocity,
             last_velocity: velocity,
             handle: None,
             max_linear_velocity: 100.0,
+            mass,
         }
     }
 }
@@ -201,13 +202,13 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
             }
 
             let rigid_body = RigidBodyDesc::new()
-                .translation(Vector2::new(transform.pos_x / 32.0, transform.pos_y / 32.0))
+                .translation(Vector2::new(transform.pos_x * WORLD_UNIT_RATIO, transform.pos_y * WORLD_UNIT_RATIO))
                 .rotation(0.0)
                 .gravity_enabled(false)
                 .status(BodyStatus::Dynamic)
                 .velocity(rigidbody.velocity)
                 .max_linear_velocity(rigidbody.max_linear_velocity)
-                .mass(1.0)
+                .mass(rigidbody.mass)
                 //.kinematic_translations(Vector2::new(true, true))
                 .user_data(ent)
                 .build();
@@ -228,10 +229,12 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 let rb_velocity = rb.velocity();
                 if (rb_velocity.linear != rigidbody.velocity.linear) || (rb_velocity.angular != rigidbody.velocity.angular) {
                     rb.set_velocity(rigidbody.velocity);
+                    /*
                     println!(
                         "[RigidbodySendPhysicsSystem] Modified rigidbody: {}, new vel: {:?}",
                         ent_id, rigidbody.velocity,
                     );
+                    */
                 }
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent_id);
@@ -257,7 +260,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
             if let Some(rb_handle) = physics.ent_body_handles.get(&ent).cloned() {
             let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
             // TODO transform component should have it's own isometry already
-            rb.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64 / 32.0, transform.pos_y as f64 / 32.0));
+            rb.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64 * WORLD_UNIT_RATIO, transform.pos_y as f64 * WORLD_UNIT_RATIO));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
@@ -343,10 +346,9 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 if let Some(rb_handle) = physics.ent_body_handles.get(&ent) {
                     (rb_handle.clone(), Vector2::<f64>::zeros())
                 } else {
-                    let ratio = 1.0 / 32.0;
                     (
                         physics.ground_body_handle.clone(),
-                        Vector2::new(transform.pos_x, transform.pos_y) * ratio,
+                        Vector2::new(transform.pos_x, transform.pos_y) * WORLD_UNIT_RATIO,
                     )
                 };
 
@@ -390,17 +392,14 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         }
 
         // Handle modified transforms
-        /*
         for (ent, transform, _, _) in (&entities, &transforms, &colliders, &self.modified_transforms).join() {
-            if let Some(body_handle) = physics.ent_body_handles.get(&ent).cloned() {
-                let rb = physics.bodies.rigid_body_mut(body_handle).unwrap();
-                // TODO transform component should have it's own isometry already
-                //rb.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64, transform.pos_y as f64));
+            if let Some(collider_handle) = physics.ent_collider_handles.get(&ent).cloned() {
+                let collider = physics.colliders.get_mut(collider_handle).unwrap();
+                collider.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64 * WORLD_UNIT_RATIO, transform.pos_y as f64 * WORLD_UNIT_RATIO));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
         }
-        */
     }
 
     fn setup(&mut self, world: &mut World) {
@@ -424,19 +423,6 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
         for event in physics.geometrical_world.contact_events() {
             let collision_event = match event {
                 ContactEvent::Started(handle1, handle2) => {
-                    println!("ContactEvent::Started {:?}, {:?}", handle1, handle2);
-                    if let Some(rb) = physics.bodies.rigid_body(*handle1) {
-                        //println!("1: {:?}", rb.velocity());
-                    }
-
-                    if let Some(rb) = physics.bodies.rigid_body(*handle2) {
-                        //println!("2: {:?}", rb.velocity());
-                    }
-
-                    for (h1, _, h2, _, _, _) in physics.geometrical_world.contact_pairs(&physics.colliders, false) {
-                        //println!("contact pair: {:?} and {:?}", h1, h2);
-                    }
-
                     if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) =
                         physics.geometrical_world.contact_pair(
                             &physics.colliders,
@@ -445,17 +431,13 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                             false,
                         )
                     {
-                        if manifold.len() == 0 {
-                            println!("No contacts in manifold!");
-                            //continue;
-                        }
-
                         let entity_a = collider_a.user_data().unwrap().downcast_ref::<Entity>().cloned();
                         let entity_b = collider_b.user_data().unwrap().downcast_ref::<Entity>().cloned();
-                        let depth = manifold.deepest_contact().unwrap().contact.depth;
-
-                        println!("depth: {}", depth);
-                        let normal = manifold.deepest_contact().unwrap().contact.normal.into_inner();
+                        let normal = if let Some(c) = manifold.deepest_contact().cloned() {
+                            Some(c.contact.normal.into_inner())
+                        } else {
+                            None
+                        };
 
                         Some(CollisionEvent {
                             entity_a,
@@ -463,12 +445,10 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                             entity_b,
                             collider_handle_b: handle_b,
                             normal,
-                            depth,
                             ty: CollisionType::Started,
                         })
                     } else {
-                        panic!("No contact pair found for collision!");
-
+                        eprintln!("No contact pair found for collision!");
                         None
                     }
                 }
@@ -502,8 +482,8 @@ impl<'a> System<'a> for RigidbodyReceivePhysicsSystem {
                 rigidbody.last_velocity = rigidbody.velocity.clone();
 
                 let pos = body.position().translation.vector;
-                transform.pos_x = pos.x * 32.0;
-                transform.pos_y = pos.y * 32.0;
+                transform.pos_x = pos.x * PIXELS_PER_WORLD_UNIT as f64;
+                transform.pos_y = pos.y * PIXELS_PER_WORLD_UNIT as f64;
 
                 rigidbody.velocity = body.velocity().clone();
                 if rigidbody.last_velocity.linear != rigidbody.velocity.linear {
