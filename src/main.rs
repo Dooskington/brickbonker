@@ -21,6 +21,10 @@ fn main() {
     let window_height: u32 = 480;
     let state = GameState::new();
 
+    // Need to pass in a resolution and scale
+    // then create a window with the scale
+    // and projection with the original resolution?
+
     window::run(
         window_title,
         window_width,

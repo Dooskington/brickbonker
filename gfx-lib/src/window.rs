@@ -104,6 +104,7 @@ pub fn run<T>(
             WinitEvent::MainEventsCleared => {
                 let new_time = Instant::now();
                 frame_time = new_time - current_time;
+                frame_time = frame_time.min(std::time::Duration::from_secs_f64(0.1));
                 current_time = new_time;
 
                 let dt = frame_time.as_secs_f64();

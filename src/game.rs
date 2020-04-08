@@ -1,12 +1,15 @@
 use crate::physics::*;
 use gfx::{color::*, input::*, renderer::*, sprite::*, Point2f, Vector2f};
 use nalgebra::Vector2;
-use nphysics2d::object::{Ground, DefaultBodySet, DefaultColliderSet, BodyStatus, RigidBodyDesc, BodyPartHandle, ColliderDesc};
-use nphysics2d::force_generator::DefaultForceGeneratorSet;
-use nphysics2d::joint::DefaultJointConstraintSet;
-use nphysics2d::world::{DefaultMechanicalWorld, DefaultGeometricalWorld};
-use nphysics2d::math::{Velocity};
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
+use nphysics2d::object::Body;
+use nphysics2d::joint::DefaultJointConstraintSet;
+use nphysics2d::math::Velocity;
+use nphysics2d::object::{
+    BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodySet, DefaultColliderSet, Ground,
+    RigidBodyDesc,
+};
+use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
 use shrev::EventChannel;
 use specs::prelude::*;
 use std::collections::HashMap;
@@ -17,8 +20,8 @@ const PADDLE_BB_X: f32 = 3.0;
 const PADDLE_BB_Y: f32 = 10.0;
 const PADDLE_BB_WIDTH: f32 = 58.0;
 const PADDLE_BB_HEIGHT: f32 = 10.0;
-const PADDLE_SCALE_X: f32 = 1.0;
-const PADDLE_SCALE_Y: f32 = 1.0;
+const PADDLE_SCALE_X: f32 = 2.0;
+const PADDLE_SCALE_Y: f32 = 2.0;
 
 const DEFAULT_BALL_FORCE: f32 = 2.0;
 const BALL_SPRITE_WIDTH: u32 = 32;
@@ -44,27 +47,12 @@ pub struct GameState<'a, 'b> {
 }
 
 impl<'a, 'b> GameState<'a, 'b> {
-pub fn new() -> GameState<'a, 'b> {
+    pub fn new() -> GameState<'a, 'b> {
         let mut world = World::new();
 
-        // Components
-        world.register::<TransformComponent>();
-        world.register::<BallComponent>();
-        world.register::<SpriteComponent>();
-        world.register::<PlayerPaddleComponent>();
-        world.register::<BoundingBoxComponent>();
-        world.register::<BreakableComponent>();
-        world.register::<RigidbodyComponent>();
-        world.register::<ColliderComponent>();
-
         let mut tick_dispatcher = DispatcherBuilder::new()
-            .with(BallPhysicsSystem, "ball_physics", &[])
+            .with(BallSystem::default(), "ball_physics", &[])
             .with(PlayerPaddleSystem, "player_paddle", &[])
-            .with(
-                BoundingBoxSystem,
-                "bounding_box",
-                &["player_paddle", "ball_physics"],
-            )
             .with_thread_local(SpawnBallSystem::default())
             .with_thread_local(SpriteRenderSystem::default())
             .build();
@@ -92,13 +80,6 @@ pub fn new() -> GameState<'a, 'b> {
                 origin: Point2f::new(32.0, 20.0),
                 scale: Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
             })
-            .with(BoundingBoxComponent {
-                x: PADDLE_BB_X,
-                y: PADDLE_BB_Y,
-                w: PADDLE_BB_WIDTH,
-                h: PADDLE_BB_HEIGHT,
-                bb: None,
-            })
             //.with(ColliderComponent::new())
             .with(PlayerPaddleComponent::default())
             .with(SpriteComponent {
@@ -112,7 +93,8 @@ pub fn new() -> GameState<'a, 'b> {
                 },
             })
             .build();
-            */
+        */
+
         // Spawn brick ents
         /*
         for x in 0..LEVEL_BRICKS_WIDTH {
@@ -150,22 +132,19 @@ pub fn new() -> GameState<'a, 'b> {
         }
         */
 
-        /*
+        let wall_collision_groups = ncollide2d::pipeline::CollisionGroups::new().with_membership(&[1]);
+
+        // test bricks
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: 64.0
-                pos_y: 400.0,
+                pos_x: 320.0,
+                pos_y: 240.0,
                 scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
-                origin: Point2f::new(0.0, 16.0),
+                origin: Point2f::new(16.0, 8.0),
+                ..Default::default()
             })
-            .with(BoundingBoxComponent {
-                x: 0.0,
-                y: 0.0,
-                w: 32.0,
-                h: 16.0,
-                bb: None,
-            })
+            .with(ColliderComponent::new(Cuboid::new(Vector2::new(0.5, 0.25)), Vector2::zeros(), wall_collision_groups))
             .with(BreakableComponent {
                 hp: DEFAULT_BRICK_HP,
             })
@@ -180,20 +159,282 @@ pub fn new() -> GameState<'a, 'b> {
                 },
             })
             .build();
-        */
+
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 120.0,
+                pos_y: 240.0,
+                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
+                origin: Point2f::new(16.0, 8.0),
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(Cuboid::new(Vector2::new(0.5, 0.25)), Vector2::zeros(), wall_collision_groups))
+            .with(BreakableComponent {
+                hp: DEFAULT_BRICK_HP,
+            })
+            .with(SpriteComponent {
+                color: COLOR_WHITE,
+                spritesheet_tex_id: 2,
+                region: SpriteRegion {
+                    x: 96,
+                    y: 0,
+                    w: BRICK_SPRITE_WIDTH,
+                    h: BRICK_SPRITE_HEIGHT,
+                },
+            })
+            .build();
+
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 320.0,
+                pos_y: 140.0,
+                scale: Vector2f::new(2.0, 2.0),
+                origin: Point2f::new(16.0, 8.0),
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(Cuboid::new(Vector2::new(1.0, 0.5)), Vector2::zeros(), wall_collision_groups))
+            .with(BreakableComponent {
+                hp: DEFAULT_BRICK_HP,
+            })
+            .with(SpriteComponent {
+                color: COLOR_WHITE,
+                spritesheet_tex_id: 2,
+                region: SpriteRegion {
+                    x: 96,
+                    y: 0,
+                    w: BRICK_SPRITE_WIDTH,
+                    h: BRICK_SPRITE_HEIGHT,
+                },
+            })
+            .build();
+
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 520.0,
+                pos_y: 240.0,
+                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
+                origin: Point2f::new(16.0, 8.0),
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(Cuboid::new(Vector2::new(0.5, 0.25)), Vector2::zeros(), wall_collision_groups))
+            .with(BreakableComponent {
+                hp: DEFAULT_BRICK_HP,
+            })
+            .with(SpriteComponent {
+                color: COLOR_WHITE,
+                spritesheet_tex_id: 2,
+                region: SpriteRegion {
+                    x: 96,
+                    y: 0,
+                    w: BRICK_SPRITE_WIDTH,
+                    h: BRICK_SPRITE_HEIGHT,
+                },
+            })
+            .build();
 
         // Spawn the initial ball
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
-                pos_x: 64.0,
-                pos_y: 0.0,
-                vel_x: 0.0,
-                vel_y: 2.0,
+                pos_x: 320.0,
+                pos_y: 32.0,
+                vel_x: 7.0,
+                vel_y: -7.0,
                 //owning_paddle_ent: Some(paddle_ent),
                 owning_paddle_ent: None,
             });
 
+            world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 256.0,
+                pos_y: 32.0,
+                vel_x: 7.0,
+                vel_y: 6.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+            world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 100.0,
+                pos_y: 32.0,
+                vel_x: 6.1,
+                vel_y: 5.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+            /*
+            world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 256.0,
+                pos_y: 256.0,
+                vel_x: -3.0,
+                vel_y: 4.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 300.0,
+                pos_y: 300.0,
+                vel_x: -7.25,
+                vel_y: 7.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 100.0,
+                pos_y: 200.0,
+                vel_x: 7.0,
+                vel_y: -7.6,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 400.0,
+                pos_y: 420.0,
+                vel_x: 5.0,
+                vel_y: -6.5,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+            */
+
+            /*
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 356.0,
+                pos_y: 256.0,
+                vel_x: -5.0,
+                vel_y: 5.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 400.0,
+                pos_y: 300.0,
+                vel_x: -7.5,
+                vel_y: 7.5,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 100.0,
+                pos_y: 100.0,
+                vel_x: 7.5,
+                vel_y: -7.5,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+            */
+
+            /*
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 400.0,
+                pos_y: 425.0,
+                vel_x: 6.0,
+                vel_y: 5.5,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                pos_x: 100.0,
+                pos_y: 350.0,
+                vel_x: 3.0,
+                vel_y: 1.0,
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+        */
+
+        // Bottom collider
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 0.0,
+                pos_y: 500.0,
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(
+                Cuboid::new(Vector2::new(50.0, 20.0 * (1.0 / 32.0))),
+                Vector2::zeros(),
+                wall_collision_groups,
+            ))
+            .build();
+
+        // Left collider
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: -20.0,
+                pos_y: 0.0,
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(
+                Cuboid::new(Vector2::new(20.0 * (1.0 / 32.0), 50.0)),
+                Vector2::zeros(),
+                wall_collision_groups,
+            ))
+            .build();
+
+        // Top collider
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 0.0,
+                pos_y: -20.0,
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(
+                Cuboid::new(Vector2::new(50.0, 20.0 * (1.0 / 32.0))),
+                Vector2::zeros(),
+                wall_collision_groups,
+            ))
+            .build();
+
+        // Right collider
+        world
+            .create_entity()
+            .with(TransformComponent {
+                pos_x: 660.0,
+                pos_y: 0.0,
+                ..Default::default()
+            })
+            .with(ColliderComponent::new(
+                Cuboid::new(Vector2::new(20.0 * (1.0 / 32.0), 50.0)),
+                Vector2::zeros(),
+                wall_collision_groups,
+            ))
+            .build();
+
+        /*
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
@@ -215,6 +456,7 @@ pub fn new() -> GameState<'a, 'b> {
                 //owning_paddle_ent: Some(paddle_ent),
                 owning_paddle_ent: None,
             });
+            */
 
         // TESTING Physics Stuff
         /*
@@ -282,7 +524,6 @@ pub fn new() -> GameState<'a, 'b> {
 
         // Resources
         world.insert(RenderCommander::new());
-        world.insert(WorldBoundingBoxState::default());
         world.insert(LevelState {
             level: 1,
             player_paddle_ent: None,
@@ -305,69 +546,6 @@ pub struct SpawnBallEvent {
     pub vel_x: f64,
     pub vel_y: f64,
     pub owning_paddle_ent: Option<Entity>,
-}
-
-/// Ball collision types and associated data
-#[derive(Clone, Copy, PartialEq)]
-pub enum BallCollision {
-    Brick {
-        hit_normal: Vector2f,
-        collision_dir: AABBCollisionDirection,
-        hit_ent: Entity,
-    },
-    Paddle {
-        x_hit_percentage: f32,
-    },
-    None,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum AABBCollisionDirection {
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-impl AABBCollisionDirection {
-    /// Calculate the direction that the collision is coming from, using the collision vector
-    pub fn from_vector(vector: Vector2<f32>) -> AABBCollisionDirection {
-        let dirs: Vec<(Vector2<f32>, AABBCollisionDirection)> = vec![
-            (Vector2::new(0.0, -1.0), AABBCollisionDirection::Up),
-            (Vector2::new(0.0, 1.0), AABBCollisionDirection::Down),
-            (Vector2::new(1.0, 0.0), AABBCollisionDirection::Left),
-            (Vector2::new(-1.0, 0.0), AABBCollisionDirection::Right),
-        ];
-
-        let mut max: f32 = 0.0;
-        let mut best_match: AABBCollisionDirection = AABBCollisionDirection::Up;
-        for (v, dir) in dirs {
-            let dot_product: f32 = vector.dot(&v);
-            if dot_product > max {
-                max = dot_product;
-                best_match = dir;
-            }
-        }
-
-        return best_match;
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BoundingBox {
-    pub left_x: f32,
-    pub right_x: f32,
-    pub top_y: f32,
-    pub bottom_y: f32,
-    pub center_x: f32,
-    pub center_y: f32,
-    pub half_w: f32,
-    pub half_h: f32,
-}
-
-#[derive(Default)]
-pub struct WorldBoundingBoxState {
-    pub boxes: HashMap<Entity, BoundingBox>,
 }
 
 #[derive(Default)]
@@ -459,6 +637,19 @@ impl Component for TransformComponent {
     type Storage = FlaggedStorage<Self, VecStorage<Self>>;
 }
 
+impl Default for TransformComponent {
+    fn default() -> Self {
+        TransformComponent {
+            pos_x: 0.0,
+            pos_y: 0.0,
+            last_pos_x: 0.0,
+            last_pos_y: 0.0,
+            origin: Point2f::origin(),
+            scale: Vector2f::new(1.0, 1.0),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct BallComponent {
     pub last_pos: Point2f,
@@ -469,19 +660,6 @@ pub struct BallComponent {
 }
 
 impl Component for BallComponent {
-    type Storage = VecStorage<Self>;
-}
-
-#[derive(Debug)]
-pub struct BoundingBoxComponent {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32,
-    pub bb: Option<BoundingBox>,
-}
-
-impl Component for BoundingBoxComponent {
     type Storage = VecStorage<Self>;
 }
 
@@ -533,7 +711,7 @@ impl<'a> System<'a> for PlayerPaddleSystem {
             let is_moving_right =
                 input.is_key_held(VirtualKeyCode::D) || input.is_key_held(VirtualKeyCode::Right);
 
-            let speed = 10.0;
+            let speed = 400.0 * 0.016;
             paddle.vel_x = 0.0;
 
             if is_moving_left {
@@ -595,14 +773,21 @@ impl<'a> System<'a> for SpriteRenderSystem {
         Write<'a, RenderCommander>,
         ReadStorage<'a, TransformComponent>,
         ReadStorage<'a, SpriteComponent>,
+        ReadStorage<'a, RigidbodyComponent>,
     );
 
-    fn run(&mut self, (physics, mut render, transforms, sprites): Self::SystemData) {
-        for (transform, sprite) in (&transforms, &sprites).join() {
-            let x = (transform.pos_x * physics.lerp) + (transform.last_pos_x * (1.0 - physics.lerp));
-            let y = (transform.pos_y * physics.lerp) + (transform.last_pos_y * (1.0 - physics.lerp));
-            //let x = transform.pos_x;
-            //let y = transform.pos_y;
+    fn run(&mut self, (physics, mut render, transforms, sprites, rigidbodies): Self::SystemData) {
+        for (transform, sprite, rigidbody) in (&transforms, &sprites, (&rigidbodies).maybe()).join()
+        {
+            let (x, y) = if let Some(_) = rigidbody {
+                let x = (transform.pos_x * physics.lerp)
+                    + (transform.last_pos_x * (1.0 - physics.lerp));
+                let y = (transform.pos_y * physics.lerp)
+                    + (transform.last_pos_y * (1.0 - physics.lerp));
+                (x, y)
+            } else {
+                (transform.pos_x, transform.pos_y)
+            };
 
             render.bind_texture(sprite.spritesheet_tex_id);
             render.bind_color(sprite.color);
@@ -617,31 +802,47 @@ impl<'a> System<'a> for SpriteRenderSystem {
     }
 }
 
-struct BallPhysicsSystem;
+#[derive(Default)]
+struct BallSystem {
+    collision_event_reader: Option<ReaderId<CollisionEvent>>,
+}
 
-impl<'a> System<'a> for BallPhysicsSystem {
+impl<'a> System<'a> for BallSystem {
     type SystemData = (
         Entities<'a>,
-        Read<'a, WorldBoundingBoxState>,
+        WriteExpect<'a, PhysicsState>,
         Read<'a, LevelState>,
+        Read<'a, EventChannel<CollisionEvent>>,
         Write<'a, EventChannel<SpawnBallEvent>>,
         WriteStorage<'a, TransformComponent>,
         WriteStorage<'a, BallComponent>,
         WriteStorage<'a, BreakableComponent>,
         ReadStorage<'a, PlayerPaddleComponent>,
+        WriteStorage<'a, RigidbodyComponent>,
     );
+
+    fn setup(&mut self, world: &mut World) {
+        Self::SystemData::setup(world);
+        self.collision_event_reader = Some(
+            world
+                .fetch_mut::<EventChannel<CollisionEvent>>()
+                .register_reader(),
+        );
+    }
 
     fn run(
         &mut self,
         (
             ents,
-            world_bounding_boxes,
+            mut physics,
             level,
+            collision_events,
             mut spawn_ball_events,
             mut transforms,
             mut balls,
             mut breakables,
             paddles,
+            mut rigidbodies,
         ): Self::SystemData,
     ) {
         for (ent, transform, ball) in (&ents, &mut transforms, &mut balls).join() {
@@ -649,20 +850,90 @@ impl<'a> System<'a> for BallPhysicsSystem {
                 continue;
             }
 
+            if transform.pos_y > 500.0 {
+                use rand::Rng;
+                let mut rand =  rand::thread_rng();
+                let vel_x = rand.gen_range(-6.0, 6.0);
+                let vel_y = rand.gen_range(4.0, 7.0);
+
+                ents.delete(ent).expect("Failed to delete ball ent!");
+                spawn_ball_events.single_write(SpawnBallEvent {
+                    pos_x: rand.gen_range(32.0, 458.0),
+                    pos_y: 32.0,
+                    vel_x,
+                    vel_y,
+                    //owning_paddle_ent: level.player_paddle_ent,
+                    owning_paddle_ent: None,
+                });
+                continue;
+            }
+
+            for event in collision_events.read(&mut self.collision_event_reader.as_mut().unwrap()) {
+                if let Some(entity_a) = event.entity_a {
+                    if let Some(rigidbody) = rigidbodies.get_mut(entity_a) {
+                        let vel = rigidbody.last_velocity;
+                        let normal = -event.normal;
+                        let dot = vel.linear.dot(&normal);
+
+                        let force_multiplier = 1.1;
+                        let mut reflection = vel.linear - (2.0 * dot) * normal;
+
+                        if reflection.x.abs() < reflection.y.abs() {
+                            reflection.x *= force_multiplier;
+                        } else {
+                            reflection.y *= force_multiplier;
+                        }
+
+                        reflection = reflection.normalize() * nalgebra::clamp(vel.linear.magnitude(), 0.0, 15.0);
+
+                        /*
+                        if let Some(body) = physics.bodies.rigid_body_mut(rigidbody.handle.unwrap()) {
+                            use nphysics2d::algebra::{Force2, ForceType};
+                            //body.apply_force(0, &Force2::linear(reflection * vel.linear.magnitude()), ForceType::AccelerationChange, true);
+                            //println!("applied force");
+                        }
+                        */
+
+                        rigidbody.velocity = Velocity::new(reflection, vel.angular);
+                    }
+                }
+
+                if let Some(entity_b) = event.entity_b {
+                    if let Some(rigidbody) = rigidbodies.get_mut(entity_b) {
+                        let vel = rigidbody.last_velocity;
+                        let normal = event.normal;
+                        let dot = vel.linear.dot(&normal);
+
+                        let force_multiplier = 1.05;
+                        let mut reflection = vel.linear - (2.0 * dot) * normal;
+                        reflection = reflection.normalize() * nalgebra::clamp(vel.linear.magnitude(), 0.0, 15.0);
+
+                        if reflection.x.abs() < reflection.y.abs() {
+                            reflection.x *= force_multiplier;
+                        } else {
+                            reflection.y *= force_multiplier;
+                        }
+
+                        rigidbody.velocity = Velocity::new(reflection, vel.angular);
+                    }
+                }
+            }
+
+            /*
             let mut correction: Option<Vector2f> = None;
 
             // Check for wall collisions
             if transform.pos_x < 0.0 {
                 transform.pos_x = 0.0;
-                //ball.vel_x = ball.vel_x.abs() * 1.1;
+            //ball.vel_x = ball.vel_x.abs() * 1.1;
             } else if transform.pos_x > 640.0 {
                 transform.pos_x = 640.0;
-                //ball.vel_x = ball.vel_x.abs() * -1.1;
+            //ball.vel_x = ball.vel_x.abs() * -1.1;
             }
             // Check for ceiling colision
             else if transform.pos_y < 0.0 {
                 transform.pos_y = 0.0;
-                //ball.vel_y = ball.vel_y.abs() * 1.1;
+            //ball.vel_y = ball.vel_y.abs() * 1.1;
             }
             // Check for out of bounds (below paddle)
             else if transform.pos_y > 480.0 {
@@ -680,6 +951,7 @@ impl<'a> System<'a> for BallPhysicsSystem {
                     owning_paddle_ent: None,
                 });
             }
+            */
             /*
             // Check for brick collisions
             else {
@@ -801,116 +1073,6 @@ impl<'a> System<'a> for BallPhysicsSystem {
     }
 }
 
-pub fn check_ball_brick_collision<'a, I>(
-    ent_id: u32,
-    ball_center: Point2f,
-    brick_bbs: I,
-    paddles: &ReadStorage<'a, PlayerPaddleComponent>,
-) -> BallCollision
-where
-    I: IntoIterator<Item = (&'a Entity, &'a BoundingBox)>,
-{
-    let mut collisions: Vec<(f32, BallCollision)> = Vec::new();
-    for (box_ent, bb) in brick_bbs {
-        if box_ent.id() == ent_id {
-            continue;
-        }
-
-        let center_diff_x: f32 = ball_center.x - bb.center_x;
-        let center_diff_y: f32 = ball_center.y - bb.center_y;
-
-        let clamped_diff_x: f32 = center_diff_x.max(-bb.half_w).min(bb.half_w);
-        let clamped_diff_y: f32 = center_diff_y.max(-bb.half_h).min(bb.half_h);
-
-        let closest_x: f32 = bb.center_x + clamped_diff_x;
-        let closest_y: f32 = bb.center_y + clamped_diff_y;
-
-        let diff_x: f32 = ball_center.x - closest_x;
-        let diff_y: f32 = ball_center.y - closest_y;
-
-        let dist: f32 = (diff_x.powf(2.0) + diff_y.powf(2.0)).sqrt();
-        if dist < BALL_BB_RADIUS {
-            println!("HIT {}, {}", diff_x, diff_y);
-            let dir = Vector2f::new(diff_x, diff_y).normalize();
-            let collision_dir = AABBCollisionDirection::from_vector(dir);
-            let is_paddle = paddles.get(*box_ent).is_some();
-
-            if is_paddle {
-                let x_dist_to_paddle_center = (ball_center.x - bb.center_x) / 2.0;
-                let x_hit_percentage = x_dist_to_paddle_center / bb.half_w;
-
-                // If we hit the paddle, just return that immediately. It takes priority over other collisions
-                return BallCollision::Paddle { x_hit_percentage };
-            } else {
-                collisions.push((
-                    dist,
-                    BallCollision::Brick {
-                        hit_normal: dir,
-                        collision_dir,
-                        hit_ent: *box_ent,
-                    },
-                ));
-            }
-        }
-    }
-
-    // Figure out which collision was closest and just return that
-    collisions.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    if let Some((_, collision)) = collisions.first() {
-        return *collision;
-    }
-
-    BallCollision::None
-}
-
-struct BoundingBoxSystem;
-
-impl<'a> System<'a> for BoundingBoxSystem {
-    type SystemData = (
-        Entities<'a>,
-        Write<'a, WorldBoundingBoxState>,
-        ReadStorage<'a, TransformComponent>,
-        WriteStorage<'a, BoundingBoxComponent>,
-    );
-
-    fn run(
-        &mut self,
-        (ents, mut world_bounding_boxes, transforms, mut bounding_boxes): Self::SystemData,
-    ) {
-        /*
-        for (ent, transform, bounding_box) in (&ents, &transforms, &mut bounding_boxes).join() {
-            let x = transform.pos_x - (transform.origin.x as f32 * transform.scale.x);
-            let y = transform.pos_y - (transform.origin.y as f32 * transform.scale.y);
-            let bb_x = bounding_box.x as f32 * transform.scale.x;
-            let bb_y = bounding_box.y as f32 * transform.scale.y;
-            let bb_w = bounding_box.w as f32 * transform.scale.x;
-            let bb_h = bounding_box.h as f32 * transform.scale.y;
-
-            let bb = BoundingBox {
-                left_x: x + bb_x,
-                right_x: x + bb_x + bb_w,
-                top_y: y + bb_y,
-                bottom_y: y + bb_y + bb_h,
-                center_x: x + bb_x + (bb_w / 2.0),
-                center_y: y + bb_y + (bb_h / 2.0),
-                half_w: bb_w / 2.0,
-                half_h: bb_h / 2.0,
-            };
-
-            bounding_box.bb = Some(bb.clone());
-            world_bounding_boxes.boxes.insert(ent, bb);
-        }
-
-        // Clear any bounding boxes for deleted entities
-        for (ent, _) in world_bounding_boxes.boxes.clone().iter() {
-            if !ents.is_alive(*ent) {
-                world_bounding_boxes.boxes.remove(ent);
-            }
-        }
-        */
-    }
-}
-
 #[derive(Default)]
 struct SpawnBallSystem {
     spawn_ball_event_reader: Option<ReaderId<SpawnBallEvent>>,
@@ -976,12 +1138,13 @@ impl<'a> System<'a> for SpawnBallSystem {
 
             lazy_updater.insert(
                 ent,
-                RigidbodyComponent::new(Vector2::new(event.vel_x, event.vel_y))
+                RigidbodyComponent::new(Vector2::new(event.vel_x, event.vel_y)),
             );
 
+            let collision_groups = ncollide2d::pipeline::CollisionGroups::new().with_membership(&[0]).with_blacklist(&[0]);
             lazy_updater.insert(
                 ent,
-                ColliderComponent::new()
+                ColliderComponent::new(Ball::new(0.15), Vector2::zeros(), collision_groups),
             );
 
             if let Some(paddle_ent) = event.owning_paddle_ent {
