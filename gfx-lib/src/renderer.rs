@@ -601,8 +601,8 @@ impl Renderer {
 
     pub fn resize(&mut self, width: u32, height: u32, scale: f32) {
         self.dimensions = Extent2D {
-            width: (width as f32 / scale) as u32,
-            height: (height as f32 / scale) as u32,
+            width,
+            height,
         };
 
         self.rebuild_swapchain();
