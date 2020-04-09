@@ -370,6 +370,7 @@ pub struct Renderer {
     depth_format: Format,
     dimensions: Extent2D,
     viewport: pso::Viewport,
+    render_scale: f32,
 
     frame_semaphores: Option<Vec<GfxSemaphore>>,
     frame_fences: Option<Vec<GfxFence>>,
@@ -557,8 +558,8 @@ impl Renderer {
 
         let window_inner_size = window.inner_size();
         let dimensions = Extent2D {
-            width: (window_inner_size.width as f32 / render_scale) as u32,
-            height: (window_inner_size.height as f32 / render_scale) as u32,
+            width: window_inner_size.width,
+            height: window_inner_size.height,
         };
 
         let viewport = pso::Viewport {
@@ -583,6 +584,7 @@ impl Renderer {
             depth_format,
             dimensions,
             viewport,
+            render_scale,
             frame_semaphores: Some(frame_semaphores),
             frame_fences: Some(frame_fences),
             render_pass: Some(render_pass),
@@ -599,8 +601,8 @@ impl Renderer {
 
     pub fn resize(&mut self, width: u32, height: u32, scale: f32) {
         self.dimensions = Extent2D {
-            width: (width as f32 / scale) as u32,
-            height: (height as f32 / scale) as u32,
+            width,
+            height,
         };
 
         self.rebuild_swapchain();
@@ -885,9 +887,9 @@ impl Renderer {
 
         let projection = glm::ortho(
             0.0,
-            self.dimensions.width as f32 / scale_factor,
+            (self.dimensions.width as f32 / scale_factor) / self.render_scale,
             0.0,
-            self.dimensions.height as f32 / scale_factor,
+            (self.dimensions.height as f32 / scale_factor) / self.render_scale,
             -1.0,
             100.0,
         );
