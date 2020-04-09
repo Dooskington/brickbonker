@@ -53,11 +53,11 @@ impl PhysicsState {
         let mut mechanical_world = DefaultMechanicalWorld::new(gravity);
         mechanical_world
             .integration_parameters
-            .max_ccd_position_iterations = 10;
+            .max_ccd_position_iterations = 20;
 
         mechanical_world
             .integration_parameters
-            .max_ccd_substeps = 1;
+            .max_ccd_substeps = 2;
 
         let geometrical_world = DefaultGeometricalWorld::new();
         let joint_constraints = DefaultJointConstraintSet::new();
@@ -121,14 +121,16 @@ pub struct ColliderComponent {
     pub shape: ShapeHandle<f64>,
     pub offset: Vector2<f64>,
     pub collision_groups: CollisionGroups,
+    pub density: f64,
 }
 
 impl ColliderComponent {
-    pub fn new<S: Shape<f64>>(shape: S, offset: Vector2<f64>, collision_groups: CollisionGroups) -> Self {
+    pub fn new<S: Shape<f64>>(shape: S, offset: Vector2<f64>, collision_groups: CollisionGroups, density: f64) -> Self {
         ColliderComponent {
             shape: ShapeHandle::new(shape),
             offset,
             collision_groups,
+            density,
         }
     }
 }
@@ -207,7 +209,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 .gravity_enabled(false)
                 .status(BodyStatus::Dynamic)
                 .velocity(rigidbody.velocity)
-                .max_linear_velocity(rigidbody.max_linear_velocity)
+                //.max_linear_velocity(rigidbody.max_linear_velocity)
                 .mass(rigidbody.mass)
                 //.kinematic_translations(Vector2::new(true, true))
                 .user_data(ent)
@@ -226,16 +228,17 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
         for (ent, rigidbody, ent_id) in (&entities, &rigidbodies, &self.modified_bodies).join() {
             if let Some(rb_handle) = physics.ent_body_handles.get(&ent).cloned() {
                 let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
+                rb.set_velocity(rigidbody.velocity);
+                /*
                 let rb_velocity = rb.velocity();
                 if (rb_velocity.linear != rigidbody.velocity.linear) || (rb_velocity.angular != rigidbody.velocity.angular) {
                     rb.set_velocity(rigidbody.velocity);
-                    /*
                     println!(
                         "[RigidbodySendPhysicsSystem] Modified rigidbody: {}, new vel: {:?}",
                         ent_id, rigidbody.velocity,
                     );
-                    */
                 }
+                */
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent_id);
             }
@@ -292,9 +295,10 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         WriteExpect<'a, PhysicsState>,
         ReadStorage<'a, ColliderComponent>,
         ReadStorage<'a, TransformComponent>,
+        ReadStorage<'a, RigidbodyComponent>,
     );
 
-    fn run(&mut self, (entities, mut physics, colliders, transforms): Self::SystemData) {
+    fn run(&mut self, (entities, mut physics, colliders, transforms, rigidbodies): Self::SystemData) {
         self.inserted_colliders.clear();
         self.modified_colliders.clear();
         self.removed_colliders.clear();
@@ -353,7 +357,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 };
 
             let collider = ColliderDesc::new(collider.shape.clone())
-                .density(0.0)
+                .density(collider.density)
                 .translation(translation)
                 .margin(0.02)
                 .ccd_enabled(true)
@@ -391,8 +395,8 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             }
         }
 
-        // Handle modified transforms
-        for (ent, transform, _, _) in (&entities, &transforms, &colliders, &self.modified_transforms).join() {
+        // Handle modified transforms (ignoring rigidbodies, because they will update themselves)
+        for (ent, transform, _, _, _) in (&entities, &transforms, &colliders, &self.modified_transforms, !&rigidbodies).join() {
             if let Some(collider_handle) = physics.ent_collider_handles.get(&ent).cloned() {
                 let collider = physics.colliders.get_mut(collider_handle).unwrap();
                 collider.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64 * WORLD_UNIT_RATIO, transform.pos_y as f64 * WORLD_UNIT_RATIO));
@@ -453,6 +457,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                     }
                 }
                 ContactEvent::Stopped(_handle1, _handle2) => {
+                    println!("contact stopped");
                     // TODO
                     None
                 }
@@ -485,12 +490,12 @@ impl<'a> System<'a> for RigidbodyReceivePhysicsSystem {
                 transform.pos_x = pos.x * PIXELS_PER_WORLD_UNIT as f64;
                 transform.pos_y = pos.y * PIXELS_PER_WORLD_UNIT as f64;
 
-                rigidbody.velocity = body.velocity().clone();
+                //rigidbody.velocity = body.velocity().clone();
                 if rigidbody.last_velocity.linear != rigidbody.velocity.linear {
-                    //println!("velocity change! {:?} to {:?}", rigidbody.last_velocity.linear, rigidbody.velocity.linear);
+                    println!("velocity change! {:?} to {:?}", rigidbody.last_velocity.linear, rigidbody.velocity.linear);
                 }
 
-                //println!("velocity: {:?}", rigidbody.velocity.linear);
+                //println!("velocity: {:?}, pos: {}, {}", rigidbody.velocity.linear, transform.pos_x, transform.pos_y);
             }
         }
     }
