@@ -16,7 +16,7 @@ use physics::PhysicsState;
 use specs::prelude::*;
 
 fn main() {
-    let window_title: &str = "Brickbreaker";
+    let window_title: &str = "Brickbonker";
     let window_width: u32 = 320;
     let window_height: u32 = 240;
     let render_scale: f32 = 2.0;
