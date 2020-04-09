@@ -289,7 +289,6 @@ impl<'a, 'b> GameState<'a, 'b> {
                 owning_paddle_ent: None,
             });
 
-
         /*
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
@@ -713,12 +712,12 @@ impl<'a> System<'a> for BallSystem {
                 if let Some(_) = paddles.get(entity_b) {
                     let x_vel_multiplier = 0.85;
                     let y_vel_multiplier = -0.85;
-                    let mut vel = rigidbody.velocity.linear;
+                    let mut vel = rigidbody.continuous_velocity.linear;
                     vel.x *= x_vel_multiplier;
                     vel.y *= y_vel_multiplier;
 
-                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 3.0, 10.0);
-                    rigidbody.velocity = Velocity::linear(vel.x, vel.y);
+                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.1, 2.0);
+                    //rigidbody.velocity = Velocity::linear(vel.x, vel.y);
                     println!("Hit paddle!");
                     continue;
                 }
@@ -729,26 +728,25 @@ impl<'a> System<'a> for BallSystem {
                         //continue;
                     }
 
-                    let vel = rigidbody.velocity;
+                    let vel = rigidbody.continuous_velocity;
                     let normal = -normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
+                    /*
                     let force_multiplier = 1.025;
                     let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * force_multiplier;
 
-                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 3.0, 10.0);
-                    rigidbody.velocity = Velocity::new(reflected_vel, vel.angular);
+                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.1, 2.0);
+                    */
+                    //rigidbody.velocity = Velocity::new(reflected_vel, vel.angular);
+                    //rigidbody.velocity = Velocity::linear(0.0, 0.0);
+
+                    let reflected_vel = vel.linear - (2.0 * dot) * normal;
+                    rigidbody.continuous_velocity = Velocity::new(reflected_vel, vel.angular);
 
                     bounced_balls_set.add(entity_a.id());
 
-                    if let Some(body) = physics.bodies.rigid_body_mut(rigidbody.handle.unwrap()) {
-                        use nphysics2d::math::{Force, ForceType};
-                        //body.set_velocity(Velocity::new(Vector2::zeros(), 0.0));
-                        //body.apply_force(0, &Force::new(reflected_vel, 0.0), ForceType::VelocityChange, true);
-                        //println!("force applied");
-                    }
-
-                    println!("a: {:?} vel: {:?}  normal: {:?} reflection: {:?}", vel.linear, entity_a.id(), normal, reflected_vel);
+                    //println!("a: {:?} vel: {:?}  normal: {:?} reflection: {:?}", vel.linear, entity_a.id(), normal, reflected_vel);
                 } else {
                     println!("ERROR! entity_a collision had no normal!");
                 }
@@ -757,12 +755,12 @@ impl<'a> System<'a> for BallSystem {
                 if let Some(_) = paddles.get(entity_a) {
                     let x_vel_multiplier = 0.85;
                     let y_vel_multiplier = -0.85;
-                    let mut vel = rigidbody.velocity.linear;
+                    let mut vel = rigidbody.continuous_velocity.linear;
                     vel.x *= x_vel_multiplier;
                     vel.y *= y_vel_multiplier;
 
-                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 3.0, 10.0);
-                    rigidbody.velocity = Velocity::linear(vel.x, vel.y);
+                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.1, 2.0);
+                    //rigidbody.velocity = Velocity::linear(vel.x, vel.y);
                     println!("Hit paddle!");
                     continue;
                 }
@@ -773,26 +771,25 @@ impl<'a> System<'a> for BallSystem {
                         //continue;
                     }
 
-                    let vel = rigidbody.velocity;
+                    let vel = rigidbody.continuous_velocity;
                     let normal = normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
+                    /*
                     let force_multiplier = 1.025;
                     let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * force_multiplier;
 
-                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 3.0, 10.0);
-                    rigidbody.velocity = Velocity::new(reflected_vel, vel.angular);
+                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.1, 2.0);
+                    */
+                    //rigidbody.velocity = Velocity::new(reflected_vel, vel.angular);
+                    //rigidbody.velocity = Velocity::linear(0.0, 0.0);
+
+                    let reflected_vel = vel.linear - (2.0 * dot) * normal;
+                    rigidbody.continuous_velocity = Velocity::new(reflected_vel, vel.angular);
 
                     bounced_balls_set.add(entity_b.id());
 
-                    if let Some(body) = physics.bodies.rigid_body_mut(rigidbody.handle.unwrap()) {
-                        use nphysics2d::math::{Force, ForceType};
-                        //body.set_velocity(Velocity::new(Vector2::zeros(), 0.0));
-                        //body.apply_force(0, &Force::new(reflected_vel, 0.0), ForceType::VelocityChange, true);
-                        //println!("force applied");
-                    }
-
-                    println!("b: {} vel: {:?} normal: {:?} reflection: {:?}", vel.linear, entity_b.id(), normal, reflected_vel);
+                    //println!("b: {} vel: {:?} normal: {:?} reflection: {:?}", vel.linear, entity_b.id(), normal, reflected_vel);
                 } else {
                     println!("ERROR! entity_b collision had no normal!");
                 }
@@ -803,10 +800,13 @@ impl<'a> System<'a> for BallSystem {
             }
         }
 
-        for (ent, transform, ball) in (&ents, &mut transforms, &mut balls).join() {
+        for (ent, transform, rigidbody, ball) in (&ents, &mut transforms, &mut rigidbodies, &mut balls).join() {
             if ball.is_held {
                 continue;
             }
+
+            // Directly set the ball velocity every tick to keep the physics engine from affecting it
+            rigidbody.velocity = rigidbody.continuous_velocity;
 
             if transform.pos_y > 250.0 {
                 use rand::Rng;
@@ -916,7 +916,7 @@ impl<'a> System<'a> for SpawnBallSystem {
 
             lazy_updater.insert(
                 ent,
-                RigidbodyComponent::new(0.1, Vector2::new(event.vel_x, event.vel_y)),
+                RigidbodyComponent::new(1.0, Vector2::zeros(), Vector2::new(event.vel_x, event.vel_y)),
             );
 
             let collision_groups = ncollide2d::pipeline::CollisionGroups::new().with_membership(&[0]).with_blacklist(&[0]);

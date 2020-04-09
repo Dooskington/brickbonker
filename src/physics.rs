@@ -1,5 +1,5 @@
 use crate::game::*;
-use nalgebra::Vector2;
+use nalgebra::{RealField, Vector2};
 use ncollide2d::{
     pipeline::{CollisionGroups, ContactEvent},
     shape::{Ball, Cuboid, Shape, ShapeHandle},
@@ -8,10 +8,13 @@ use nphysics2d::force_generator::DefaultForceGeneratorSet;
 use nphysics2d::joint::DefaultJointConstraintSet;
 use nphysics2d::math::Velocity;
 use nphysics2d::object::{
-    BodyHandle, BodyPartHandle, BodyStatus, ColliderDesc, ColliderHandle, DefaultBodyHandle,
-    DefaultBodySet, DefaultColliderHandle, DefaultColliderSet, Ground, RigidBodyDesc,
+    Body, BodyHandle, BodyPartHandle, BodyStatus, ColliderDesc, ColliderHandle, DefaultBodyHandle,
+    DefaultBodySet, BodySet, DefaultColliderHandle, DefaultColliderSet, Ground, RigidBodyDesc,
 };
 use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
+use nphysics2d::solver::IntegrationParameters;
+use nphysics2d::force_generator::ForceGenerator;
+use nphysics2d::math::{Force, ForceType};
 use specs::prelude::*;
 use shrev::EventChannel;
 use std::collections::HashMap;
@@ -61,7 +64,9 @@ impl PhysicsState {
 
         let geometrical_world = DefaultGeometricalWorld::new();
         let joint_constraints = DefaultJointConstraintSet::new();
-        let force_generators = DefaultForceGeneratorSet::new();
+        let mut force_generators = DefaultForceGeneratorSet::new();
+        force_generators.insert(Box::new(ContinuousForceGenerator::new()));
+
         let body_handles = HashMap::new();
         let collider_handles = HashMap::new();
         let ground_body_handle = bodies.insert(Ground::new());
@@ -91,21 +96,66 @@ impl PhysicsState {
     }
 }
 
+pub struct ContinuousForceGenerator<N: RealField, Handle: BodyHandle> {
+    affected_parts: Vec<BodyPartHandle<Handle>>,
+    phantom: std::marker::PhantomData<N>,
+}
+
+impl<N: RealField, Handle: BodyHandle> ContinuousForceGenerator<N, Handle> {
+    pub fn new() -> Self {
+        ContinuousForceGenerator {
+            affected_parts: Vec::new(),
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Add a body part to be affected by this force generator.
+    pub fn add_body_part(&mut self, body: BodyPartHandle<Handle>) {
+        self.affected_parts.push(body)
+    }
+}
+
+impl<N: RealField, Handle: BodyHandle> ForceGenerator<N, Handle> for ContinuousForceGenerator<N, Handle> {
+    fn apply(&mut self, _: &IntegrationParameters<N>, bodies: &mut dyn BodySet<N, Handle = Handle>) {
+        /*
+        let acceleration = self.acceleration;
+        self.affected_parts.retain(|h| {
+            if let Some(body) = bodies.get_mut(h.0) {
+                body.apply_force(
+                    h.1,
+                    &Force::new(acceleration.linear, acceleration.angular),
+                    ForceType::AccelerationChange,
+                    false,
+                );
+                true
+            } else {
+                false
+            }
+        });
+        */
+        if self.affected_parts.len() > 0 {
+            println!("apply continuous force to {} parts", self.affected_parts.len());
+        }
+    }
+}
 #[derive(Debug)]
 pub struct RigidbodyComponent {
     pub velocity: Velocity<f64>,
     pub last_velocity: Velocity<f64>,
+    pub continuous_velocity: Velocity<f64>,
     pub handle: Option<DefaultBodyHandle>,
     pub max_linear_velocity: f64,
     pub mass: f64,
 }
 
 impl RigidbodyComponent {
-    pub fn new(mass: f64, velocity: Vector2<f64>) -> Self {
+    pub fn new(mass: f64, velocity: Vector2<f64>, continuous_velocity: Vector2<f64>) -> Self {
         let velocity = Velocity::new(velocity, 0.0);
+        let continuous_velocity = Velocity::new(continuous_velocity, 0.0);
         RigidbodyComponent {
             velocity,
             last_velocity: velocity,
+            continuous_velocity,
             handle: None,
             max_linear_velocity: 100.0,
             mass,
@@ -203,7 +253,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 physics.bodies.remove(rb_handle);
             }
 
-            let rigid_body = RigidBodyDesc::new()
+            let mut rigid_body = RigidBodyDesc::new()
                 .translation(Vector2::new(transform.pos_x * WORLD_UNIT_RATIO, transform.pos_y * WORLD_UNIT_RATIO))
                 .rotation(0.0)
                 .gravity_enabled(false)
@@ -214,6 +264,8 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 //.kinematic_translations(Vector2::new(true, true))
                 .user_data(ent)
                 .build();
+
+            //rigid_body.apply_force(0, &Force::new(rigidbody.continuous_velocity.linear, rigidbody.continuous_velocity.angular), ForceType::VelocityChange, true);
 
             let rb_handle = physics.bodies.insert(rigid_body);
             rigidbody.handle = Some(rb_handle);
@@ -229,16 +281,13 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
             if let Some(rb_handle) = physics.ent_body_handles.get(&ent).cloned() {
                 let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
                 rb.set_velocity(rigidbody.velocity);
-                /*
-                let rb_velocity = rb.velocity();
-                if (rb_velocity.linear != rigidbody.velocity.linear) || (rb_velocity.angular != rigidbody.velocity.angular) {
-                    rb.set_velocity(rigidbody.velocity);
-                    println!(
-                        "[RigidbodySendPhysicsSystem] Modified rigidbody: {}, new vel: {:?}",
-                        ent_id, rigidbody.velocity,
-                    );
+
+                let continuous_vel = rigidbody.continuous_velocity;
+                if (continuous_vel.linear != Vector2::zeros()) || (continuous_vel.angular != 0.0) {
+                    //rb.clear_forces();
+                    //rb.set_velocity(Velocity::linear(0.0, 0.0));
+                    //rb.apply_force(0, &Force::new(continuous_vel.linear, continuous_vel.angular), ForceType::VelocityChange, true);
                 }
-                */
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent_id);
             }
@@ -457,7 +506,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                     }
                 }
                 ContactEvent::Stopped(_handle1, _handle2) => {
-                    println!("contact stopped");
+                    //println!("contact stopped");
                     // TODO
                     None
                 }
@@ -490,9 +539,9 @@ impl<'a> System<'a> for RigidbodyReceivePhysicsSystem {
                 transform.pos_x = pos.x * PIXELS_PER_WORLD_UNIT as f64;
                 transform.pos_y = pos.y * PIXELS_PER_WORLD_UNIT as f64;
 
-                //rigidbody.velocity = body.velocity().clone();
+                rigidbody.velocity = body.velocity().clone();
                 if rigidbody.last_velocity.linear != rigidbody.velocity.linear {
-                    println!("velocity change! {:?} to {:?}", rigidbody.last_velocity.linear, rigidbody.velocity.linear);
+                    //println!("velocity change! {:?} to {:?}", rigidbody.last_velocity.linear, rigidbody.velocity.linear);
                 }
 
                 //println!("velocity: {:?}, pos: {}, {}", rigidbody.velocity.linear, transform.pos_x, transform.pos_y);
