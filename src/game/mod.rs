@@ -11,10 +11,11 @@ use brick::BreakableComponent;
 use gfx::{color::*, sprite::SpriteRegion};
 use nalgebra::Vector2;
 use ncollide2d::shape::Cuboid;
+use nphysics2d::object::BodyStatus;
 use paddle::{PlayerPaddleComponent, PlayerPaddleSystem};
 use physics::{
-    ColliderComponent, ColliderSendPhysicsSystem, PhysicsState, RigidbodyReceivePhysicsSystem,
-    RigidbodySendPhysicsSystem, WorldStepPhysicsSystem,
+    ColliderComponent, ColliderSendPhysicsSystem, PhysicsState, RigidbodyComponent,
+    RigidbodyReceivePhysicsSystem, RigidbodySendPhysicsSystem, WorldStepPhysicsSystem,
 };
 use render::{RenderState, SpriteComponent, SpriteRenderSystem};
 use shrev::EventChannel;
@@ -22,6 +23,7 @@ use specs::prelude::*;
 use transform::TransformComponent;
 
 pub type Vector2f = nalgebra::Vector2<f32>;
+pub type Vector2d = nalgebra::Vector2<f64>;
 pub type Point2f = nalgebra::Point2<f32>;
 
 pub const PIXELS_PER_WORLD_UNIT: u32 = 32;
@@ -70,13 +72,12 @@ impl<'a, 'b> GameState<'a, 'b> {
             ncollide2d::pipeline::CollisionGroups::new().with_membership(&[1]);
 
         // Spawn paddle ent
+        let paddle_position = Vector2d::new(width as f64 / 2.0, height as f64 - 8.0);
         let _paddle_ent = world
             .create_entity()
             .with(TransformComponent {
-                pos_x: width as f64 / 2.0,
-                pos_y: height as f64 - 6.0,
-                last_pos_x: 0.0,
-                last_pos_y: 0.0,
+                position: paddle_position,
+                last_position: paddle_position,
                 origin: Point2f::new(32.0, 16.0),
                 scale: Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
             })
@@ -107,8 +108,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: 256.0,
-                pos_y: 32.0,
+                position: Vector2d::new(256.0, 90.0),
                 scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
                 origin: Point2f::new(16.0, 8.0),
                 ..Default::default()
@@ -138,8 +138,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: 64.0,
-                pos_y: 32.0,
+                position: Vector2d::new(160.0, 60.0),
                 scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
                 origin: Point2f::new(16.0, 8.0),
                 ..Default::default()
@@ -169,14 +168,13 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: width as f64 / 2.0,
-                pos_y: height as f64 - 50.0,
-                scale: Vector2f::new(2.0, 2.0),
+                position: Vector2d::new(64.0, 90.0),
+                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
                 origin: Point2f::new(16.0, 8.0),
                 ..Default::default()
             })
             .with(ColliderComponent::new(
-                Cuboid::new(Vector2::new(1.0, 0.5)),
+                Cuboid::new(Vector2::new(0.5, 0.25)),
                 Vector2::zeros(),
                 solid_collision_groups,
                 1.0,
@@ -201,10 +199,35 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
-                pos_x: width as f64 / 2.0,
-                pos_y: height as f64 / 2.0,
-                vel_x: 4.5,
-                vel_y: -5.5,
+                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
+                linear_velocity: Vector2d::new(4.35, -5.5),
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
+                linear_velocity: Vector2d::new(-4.5, 8.4),
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
+                linear_velocity: Vector2d::new(-3.8, -5.75),
+                //owning_paddle_ent: Some(paddle_ent),
+                owning_paddle_ent: None,
+            });
+
+        world
+            .write_resource::<EventChannel<SpawnBallEvent>>()
+            .single_write(SpawnBallEvent {
+                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
+                linear_velocity: Vector2d::new(2.5, 5.2),
                 //owning_paddle_ent: Some(paddle_ent),
                 owning_paddle_ent: None,
             });
@@ -213,8 +236,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: 0.0,
-                pos_y: height as f64 + 8.0,
+                position: Vector2d::new(0.0, height as f64 + 64.0),
                 ..Default::default()
             })
             .with(ColliderComponent::new(
@@ -229,8 +251,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: -20.0,
-                pos_y: 0.0,
+                position: Vector2d::new(-20.0, 0.0),
                 ..Default::default()
             })
             .with(ColliderComponent::new(
@@ -245,8 +266,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: 0.0,
-                pos_y: -20.0,
+                position: Vector2d::new(0.0, -20.0),
                 ..Default::default()
             })
             .with(ColliderComponent::new(
@@ -261,8 +281,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world
             .create_entity()
             .with(TransformComponent {
-                pos_x: width as f64 + 20.0,
-                pos_y: 0.0,
+                position: Vector2d::new(width as f64 + 20.0, 0.0),
                 ..Default::default()
             })
             .with(ColliderComponent::new(

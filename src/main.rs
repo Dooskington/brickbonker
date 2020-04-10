@@ -36,9 +36,7 @@ fn main() {
             game.world.insert::<InputState>(input.clone());
             game.world.insert::<DeltaTime>(dt);
 
-            game.world
-                .write_resource::<RenderState>()
-                .clear_commands();
+            game.world.write_resource::<RenderState>().clear_commands();
             game.tick_dispatcher.dispatch(&mut game.world);
             game.physics_dispatcher.dispatch(&mut game.world);
             game.world.maintain();

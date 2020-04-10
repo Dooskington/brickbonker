@@ -1,10 +1,9 @@
-use crate::game::{ball::BallComponent, transform::TransformComponent};
+use crate::game::{Vector2d, ball::BallComponent, transform::TransformComponent};
 use gfx::input::{InputState, VirtualKeyCode};
 use specs::prelude::*;
 
 #[derive(Default)]
 pub struct PlayerPaddleComponent {
-    pub vel_x: f32,
     pub held_ball_ent: Option<Entity>,
     pub held_ball_pos_x: f32,
     pub held_ball_pos_y: f32,
@@ -26,23 +25,18 @@ impl<'a> System<'a> for PlayerPaddleSystem {
 
     fn run(&mut self, (input, mut transforms, mut paddles, mut balls): Self::SystemData) {
         for (transform, paddle) in (&mut transforms, &mut paddles).join() {
-            let is_moving_left =
-                input.is_key_held(VirtualKeyCode::A) || input.is_key_held(VirtualKeyCode::Left);
-            let is_moving_right =
-                input.is_key_held(VirtualKeyCode::D) || input.is_key_held(VirtualKeyCode::Right);
+            let speed = 8.0;
+            let mut movement_linear_velocity = Vector2d::zeros();
 
-            let speed = 400.0 * 0.016;
-            paddle.vel_x = 0.0;
-
-            if is_moving_left {
-                paddle.vel_x -= speed;
+            if input.is_key_held(VirtualKeyCode::A) || input.is_key_held(VirtualKeyCode::Left) {
+                movement_linear_velocity.x -= speed;
             }
 
-            if is_moving_right {
-                paddle.vel_x += speed;
+            if input.is_key_held(VirtualKeyCode::D) || input.is_key_held(VirtualKeyCode::Right) {
+                movement_linear_velocity.x += speed;
             }
 
-            transform.pos_x += paddle.vel_x as f64;
+            transform.position += movement_linear_velocity;
 
             /*
             paddle.held_ball_pos_x = transform.pos_x as f64;

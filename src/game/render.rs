@@ -107,13 +107,13 @@ impl<'a> System<'a> for SpriteRenderSystem {
         for (transform, sprite, rigidbody) in (&transforms, &sprites, (&rigidbodies).maybe()).join()
         {
             let (x, y) = if let Some(_) = rigidbody {
-                let x = (transform.pos_x * physics.lerp)
-                    + (transform.last_pos_x * (1.0 - physics.lerp));
-                let y = (transform.pos_y * physics.lerp)
-                    + (transform.last_pos_y * (1.0 - physics.lerp));
+                let x = (transform.position.x * physics.lerp)
+                    + (transform.last_position.x * (1.0 - physics.lerp));
+                let y = (transform.position.y * physics.lerp)
+                    + (transform.last_position.y * (1.0 - physics.lerp));
                 (x, y)
             } else {
-                (transform.pos_x, transform.pos_y)
+                (transform.position.x, transform.position.y)
             };
 
             render.bind_texture(sprite.spritesheet_tex_id);

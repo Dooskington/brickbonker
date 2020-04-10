@@ -4,31 +4,41 @@ use crate::game::{
     physics::{ColliderComponent, CollisionEvent, PhysicsState, RigidbodyComponent},
     render::SpriteComponent,
     transform::TransformComponent,
-    LevelState, Point2f, Vector2f,
+    LevelState, Point2f, Vector2d, Vector2f,
 };
 use gfx::{color::*, sprite::SpriteRegion};
 use nalgebra::Vector2;
 use ncollide2d::shape::Ball;
-use nphysics2d::math::Velocity;
+use nphysics2d::{math::Velocity, object::BodyStatus};
 use shrev::EventChannel;
 use specs::prelude::*;
 
-#[derive(Clone, Debug, PartialEq)]
+const BALL_MAX_LINEAR_VELOCITY: f64 = 15.0;
+
+#[derive(Clone, Debug)]
 pub struct SpawnBallEvent {
-    pub pos_x: f64,
-    pub pos_y: f64,
-    pub vel_x: f64,
-    pub vel_y: f64,
+    pub position: Vector2d,
+    pub linear_velocity: Vector2d,
     pub owning_paddle_ent: Option<Entity>,
 }
 
 #[derive(Debug)]
 pub struct BallComponent {
     pub last_pos: Point2f,
-    vel_x: f64,
-    vel_y: f64,
+    velocity: Velocity<f64>,
     is_held: bool,
     did_hit_brick_this_tick: bool,
+}
+
+impl BallComponent {
+    pub fn new(linear_velocity: Vector2d, is_held: bool) -> Self {
+        BallComponent {
+            last_pos: Point2f::origin(),
+            velocity: Velocity::new(linear_velocity, 0.0),
+            is_held,
+            did_hit_brick_this_tick: false,
+        }
+    }
 }
 
 impl Component for BallComponent {
@@ -78,10 +88,6 @@ impl<'a> System<'a> for BallSystem {
             mut rigidbodies,
         ): Self::SystemData,
     ) {
-        // Keep track of any balls that bounce due to collision during this tick.
-        // We will use this to make sure we don't react to more than one collision per ball per tick
-        // (This fixes the scenario where a ball hits the corner of the world perfectly causing two reflections on one tick, getting stuck)
-        let mut bounced_balls_set: BitSet = BitSet::new();
         for event in collision_events.read(&mut self.collision_event_reader.as_mut().unwrap()) {
             // Get the entities involved in the event, ignoring it entirely if either of them are not an entity
             let (entity_a, entity_b) = {
@@ -92,95 +98,61 @@ impl<'a> System<'a> for BallSystem {
                 (event.entity_a.unwrap(), event.entity_b.unwrap())
             };
 
-            // Figure out which of the entities was a ball (if any)
-
-            if let Some(rigidbody) = rigidbodies.get_mut(entity_a) {
-                // If the ball hit a paddle, propel it upwards
+            if let Some(ball) = balls.get_mut(entity_a) {
                 if let Some(_) = paddles.get(entity_b) {
-                    let x_vel_multiplier = 0.85;
-                    let y_vel_multiplier = -0.85;
-                    let mut vel = rigidbody.continuous_velocity.linear;
+                    let x_vel_multiplier = 0.97;
+                    let y_vel_multiplier = -0.97;
+                    let mut vel = ball.velocity.linear;
                     vel.x *= x_vel_multiplier;
-                    vel.y *= y_vel_multiplier;
+                    vel.y = y_vel_multiplier * vel.y.abs();
 
-                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.1, 2.0);
-                    //rigidbody.velocity = Velocity::linear(vel.x, vel.y);
+                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
+                    ball.velocity = Velocity::new(vel, 0.0);
+
                     println!("Hit paddle!");
                     continue;
                 }
 
                 if let Some(normal) = event.normal {
-                    if bounced_balls_set.contains(entity_a.id()) {
-                        println!("entity_a already bounced this tick");
-                        //continue;
-                    }
-
-                    let vel = rigidbody.continuous_velocity;
+                    let vel = ball.velocity;
                     let normal = -normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
-                    /*
-                    let force_multiplier = 1.025;
-                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * force_multiplier;
-
-                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.1, 2.0);
-                    */
-                    //rigidbody.velocity = Velocity::new(reflected_vel, vel.angular);
-                    //rigidbody.velocity = Velocity::linear(0.0, 0.0);
-
-                    let reflected_vel = vel.linear - (2.0 * dot) * normal;
-                    rigidbody.continuous_velocity = Velocity::new(reflected_vel, vel.angular);
+                    let mut reflected_vel = vel.linear - (2.0 * dot) * normal;
+                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
+                    ball.velocity = Velocity::new(reflected_vel * 1.01, vel.angular);
 
                     crate::game::audio::test_audio();
 
-                    bounced_balls_set.add(entity_a.id());
-
-                //println!("a: {:?} vel: {:?}  normal: {:?} reflection: {:?}", vel.linear, entity_a.id(), normal, reflected_vel);
                 } else {
                     println!("ERROR! entity_a collision had no normal!");
                 }
-            } else if let Some(rigidbody) = rigidbodies.get_mut(entity_b) {
+            } else if let Some(ball) = balls.get_mut(entity_b) {
                 // If the ball hit a paddle, propel it upwards
                 if let Some(_) = paddles.get(entity_a) {
-                    let x_vel_multiplier = 0.85;
-                    let y_vel_multiplier = -0.85;
-                    let mut vel = rigidbody.continuous_velocity.linear;
-                    vel.x *= x_vel_multiplier;
-                    vel.y *= y_vel_multiplier;
+                    let x_vel_multiplier = 0.97;
+                    let y_vel_multiplier = -0.97;
+                    let mut vel = ball.velocity.linear;
+                    vel.x = -vel.x * x_vel_multiplier;
+                    vel.y = y_vel_multiplier * vel.y.abs();
 
-                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.1, 2.0);
-                    //rigidbody.velocity = Velocity::linear(vel.x, vel.y);
+                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
+                    ball.velocity = Velocity::new(vel, 0.0);
+
                     println!("Hit paddle!");
                     continue;
                 }
 
                 if let Some(normal) = event.normal {
-                    if bounced_balls_set.contains(entity_b.id()) {
-                        println!("entity_b already bounced this tick");
-                        //continue;
-                    }
-
-                    let vel = rigidbody.continuous_velocity;
+                    let vel = ball.velocity;
                     let normal = normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
-                    /*
-                    let force_multiplier = 1.025;
-                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * force_multiplier;
-
-                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.1, 2.0);
-                    */
-                    //rigidbody.velocity = Velocity::new(reflected_vel, vel.angular);
-                    //rigidbody.velocity = Velocity::linear(0.0, 0.0);
-
-                    let reflected_vel = vel.linear - (2.0 * dot) * normal;
-                    rigidbody.continuous_velocity = Velocity::new(reflected_vel, vel.angular);
+                    let mut reflected_vel = vel.linear - (2.0 * dot) * normal;
+                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
+                    ball.velocity = Velocity::new(reflected_vel * 1.01, vel.angular);
 
                     crate::game::audio::test_audio();
-
-                    bounced_balls_set.add(entity_b.id());
-
-                //println!("b: {} vel: {:?} normal: {:?} reflection: {:?}", vel.linear, entity_b.id(), normal, reflected_vel);
                 } else {
                     println!("ERROR! entity_b collision had no normal!");
                 }
@@ -199,26 +171,29 @@ impl<'a> System<'a> for BallSystem {
             }
 
             // Directly set the ball velocity every tick to keep the physics engine from affecting it
-            rigidbody.velocity = rigidbody.continuous_velocity;
+            rigidbody.velocity = ball.velocity;
 
-            if transform.pos_y > 250.0 {
+            // TODO replace this with a sensor collider
+            /*
+            if transform.position.y > 250.0 {
+                ents.delete(ent).expect("Failed to delete ball ent!");
+
                 use rand::Rng;
                 let mut rand = rand::thread_rng();
-                let vel_x = rand.gen_range(-6.0, 6.0);
-                let vel_y = rand.gen_range(-3.0, 5.0);
+                let position = Vector2d::new(rand.gen_range(64.0, 200.0), 64.0);
+                let linear_velocity =
+                    Vector2d::new(rand.gen_range(-6.0, 6.0), rand.gen_range(-3.0, 5.0));
 
-                ents.delete(ent).expect("Failed to delete ball ent!");
                 spawn_ball_events.single_write(SpawnBallEvent {
-                    pos_x: rand.gen_range(64.0, 128.0),
-                    pos_y: 64.0,
-                    vel_x,
-                    vel_y,
+                    position,
+                    linear_velocity,
                     //owning_paddle_ent: level.player_paddle_ent,
                     owning_paddle_ent: None,
                 });
 
                 continue;
             }
+            */
 
             /*
             // Handle the collision (if any)
@@ -272,10 +247,8 @@ impl<'a> System<'a> for SpawnBallSystem {
             lazy_updater.insert(
                 ent,
                 TransformComponent {
-                    pos_x: event.pos_x,
-                    pos_y: event.pos_y,
-                    last_pos_x: event.pos_x,
-                    last_pos_y: event.pos_y,
+                    position: event.position,
+                    last_position: event.position,
                     origin: Point2f::new(16.0, 16.0),
                     scale: Vector2f::new(1.0, 1.0),
                 },
@@ -298,21 +271,16 @@ impl<'a> System<'a> for SpawnBallSystem {
 
             lazy_updater.insert(
                 ent,
-                BallComponent {
-                    last_pos: Point2f::new(0.0, 0.0),
-                    vel_x: event.vel_x,
-                    vel_y: event.vel_y,
-                    is_held: event.owning_paddle_ent.is_some(),
-                    did_hit_brick_this_tick: false,
-                },
+                BallComponent::new(event.linear_velocity, event.owning_paddle_ent.is_some()),
             );
 
             lazy_updater.insert(
                 ent,
                 RigidbodyComponent::new(
                     1.0,
-                    Vector2::zeros(),
-                    Vector2::new(event.vel_x, event.vel_y),
+                    event.linear_velocity,
+                    BALL_MAX_LINEAR_VELOCITY,
+                    BodyStatus::Dynamic,
                 ),
             );
 
