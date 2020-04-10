@@ -16,7 +16,7 @@ use physics::{
     ColliderComponent, ColliderSendPhysicsSystem, PhysicsState, RigidbodyReceivePhysicsSystem,
     RigidbodySendPhysicsSystem, WorldStepPhysicsSystem,
 };
-use render::{RenderCommander, SpriteComponent, SpriteRenderSystem};
+use render::{RenderState, SpriteComponent, SpriteRenderSystem};
 use shrev::EventChannel;
 use specs::prelude::*;
 use transform::TransformComponent;
@@ -274,7 +274,7 @@ impl<'a, 'b> GameState<'a, 'b> {
             .build();
 
         // Resources
-        world.insert(RenderCommander::new());
+        world.insert(RenderState::new());
         world.insert(LevelState {
             level: 1,
             player_paddle_ent: None,

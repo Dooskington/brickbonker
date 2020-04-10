@@ -11,7 +11,7 @@ use gfx::{
 use specs::prelude::*;
 
 #[derive(Default)]
-pub struct RenderCommander {
+pub struct RenderState {
     commands: Vec<gfx::renderer::RenderCommand>,
     bound_transparency: Transparency,
     bound_texture_id: TextureId,
@@ -19,9 +19,9 @@ pub struct RenderCommander {
     bound_color: Color,
 }
 
-impl RenderCommander {
+impl RenderState {
     pub fn new() -> Self {
-        RenderCommander {
+        RenderState {
             ..Default::default()
         }
     }
@@ -97,7 +97,7 @@ pub struct SpriteRenderSystem;
 impl<'a> System<'a> for SpriteRenderSystem {
     type SystemData = (
         ReadExpect<'a, PhysicsState>,
-        Write<'a, RenderCommander>,
+        Write<'a, RenderState>,
         ReadStorage<'a, TransformComponent>,
         ReadStorage<'a, SpriteComponent>,
         ReadStorage<'a, RigidbodyComponent>,

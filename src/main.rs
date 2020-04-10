@@ -1,6 +1,6 @@
 mod game;
 
-use game::{physics::PhysicsState, render::RenderCommander, GameState};
+use game::{physics::PhysicsState, render::RenderState, GameState};
 
 use gfx::{
     color::*,
@@ -37,7 +37,7 @@ fn main() {
             game.world.insert::<DeltaTime>(dt);
 
             game.world
-                .write_resource::<RenderCommander>()
+                .write_resource::<RenderState>()
                 .clear_commands();
             game.tick_dispatcher.dispatch(&mut game.world);
             game.physics_dispatcher.dispatch(&mut game.world);
@@ -46,7 +46,7 @@ fn main() {
         move |game, _ticks, lerp, window, renderer| {
             game.world.write_resource::<PhysicsState>().lerp = lerp;
             // Process commands into batches and send to the renderer
-            let mut commands = game.world.write_resource::<RenderCommander>().commands();
+            let mut commands = game.world.write_resource::<RenderState>().commands();
 
             let msg = format!("{}", window.fps);
             for (i, c) in msg.chars().enumerate() {
