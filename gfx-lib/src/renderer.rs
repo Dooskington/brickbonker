@@ -2,10 +2,8 @@ use crate::{
     color::*,
     mesh::{self, Mesh, Vertex},
     sprite::*,
-    texture::*,
     window::*,
-    Vector2f,
-    Point2f,
+    Point2f, Vector2f,
 };
 use backend;
 use gfx_hal::{
@@ -15,24 +13,20 @@ use gfx_hal::{
     device::Device,
     format::{Aspects, ChannelType, Format, Swizzle},
     image::{
-        self as img, Access, Extent, Filter, Layout, Offset, SamplerDesc, SubresourceLayers,
-        SubresourceRange, ViewCapabilities, ViewKind, WrapMode,
+        self as img, Access, Extent, Filter, Layout, Offset, SubresourceLayers, SubresourceRange,
+        ViewCapabilities, WrapMode,
     },
     memory::{Barrier, Dependencies, Properties, Segment},
-    pass::{
-        Attachment, AttachmentLoadOp, AttachmentOps, AttachmentStoreOp, Subpass, SubpassDependency,
-        SubpassDesc,
-    },
+    pass::{Attachment, AttachmentLoadOp, AttachmentOps, AttachmentStoreOp, Subpass, SubpassDesc},
     pool::{self, CommandPool},
     pso::{
-        self, AttributeDesc, BlendState, ColorBlendDesc, ColorMask, Comparison, DepthStencilDesc,
-        DepthTest, Descriptor, DescriptorPool, DescriptorRangeDesc, DescriptorSetLayoutBinding,
-        DescriptorSetWrite, DescriptorType, ImageDescriptorType, BufferDescriptorType, BufferDescriptorFormat, Element, EntryPoint, GraphicsPipelineDesc,
-        GraphicsShaderSet, PipelineStage, Rasterizer, Rect, ShaderStageFlags, Specialization,
-        StencilTest, VertexBufferDesc, Viewport,
+        self, AttributeDesc, BufferDescriptorFormat, BufferDescriptorType, Descriptor,
+        DescriptorPool, DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorSetWrite,
+        DescriptorType, Element, EntryPoint, GraphicsPipelineDesc, GraphicsShaderSet,
+        ImageDescriptorType, PipelineStage, ShaderStageFlags, Specialization, VertexBufferDesc,
     },
     queue::{family::QueueGroup, CommandQueue, QueueFamily, Submission},
-    window::{self, Extent2D, PresentationSurface, Surface, SwapImageIndex},
+    window::{self, Extent2D, PresentationSurface, Surface},
     Backend, IndexType, Instance, MemoryTypeId,
 };
 use glm;
@@ -41,7 +35,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{Cursor, Read},
-    rc::Rc
+    rc::Rc,
 };
 
 pub(crate) type GfxInstance = ::backend::Instance;
@@ -89,7 +83,9 @@ pub enum Transparency {
 }
 
 impl Default for Transparency {
-    fn default() -> Self { Transparency::Opaque }
+    fn default() -> Self {
+        Transparency::Opaque
+    }
 }
 
 #[derive(Clone)]
@@ -256,7 +252,6 @@ impl RenderBatch {
                     self.tex_info.2,
                 );
             }
-            _ => {}
         }
     }
 
@@ -599,11 +594,8 @@ impl Renderer {
         }
     }
 
-    pub fn resize(&mut self, width: u32, height: u32, scale: f32) {
-        self.dimensions = Extent2D {
-            width,
-            height,
-        };
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.dimensions = Extent2D { width, height };
 
         self.rebuild_swapchain();
     }
@@ -945,7 +937,10 @@ impl Renderer {
         };
 
         unsafe {
-            self.queue_group.queues[0].submit(submission, Some(&mut self.frame_fences.as_mut().unwrap()[frame_idx]));
+            self.queue_group.queues[0].submit(
+                submission,
+                Some(&mut self.frame_fences.as_mut().unwrap()[frame_idx]),
+            );
         }
 
         let result = unsafe {
@@ -999,13 +994,24 @@ impl Renderer {
 
             // Bind buffers
             let vertex_buffer_offset = (frame_idx * batch.vertex_buffer.2) as u64;
-            command_buffer
-                .bind_vertex_buffers(0, Some((batch.vertex_buffer_ref(), buffer::SubRange { offset: vertex_buffer_offset, size: Some(batch.vertex_buffer.2 as u64) })));
+            command_buffer.bind_vertex_buffers(
+                0,
+                Some((
+                    batch.vertex_buffer_ref(),
+                    buffer::SubRange {
+                        offset: vertex_buffer_offset,
+                        size: Some(batch.vertex_buffer.2 as u64),
+                    },
+                )),
+            );
 
             let index_buffer_offset = (frame_idx * batch.index_buffer.2) as u64;
             command_buffer.bind_index_buffer(buffer::IndexBufferView {
                 buffer: batch.index_buffer_ref(),
-                range: buffer::SubRange { offset: index_buffer_offset, size: Some(batch.index_buffer.2 as u64) },
+                range: buffer::SubRange {
+                    offset: index_buffer_offset,
+                    size: Some(batch.index_buffer.2 as u64),
+                },
                 index_type: IndexType::U32,
             });
 
@@ -1117,7 +1123,8 @@ impl Renderer {
                 .create_fence(false)
                 .expect("Failed to create texture copy fence!");
             unsafe {
-                let mut cmd_buffer = self.command_pools.as_mut().unwrap()[0].allocate_one(command::Level::Primary);
+                let mut cmd_buffer =
+                    self.command_pools.as_mut().unwrap()[0].allocate_one(command::Level::Primary);
                 cmd_buffer.begin_primary(command::CommandBufferFlags::ONE_TIME_SUBMIT);
 
                 let color_range = SubresourceRange {
@@ -1376,16 +1383,14 @@ fn update_buffer<T: Copy>(
 
     let device = device.borrow();
     unsafe {
-        let segment = Segment { offset: buffer_offset, size: Some(data_len) };
-        let mapping = device
-            .map_memory(buffer_memory, segment.clone())
-            .unwrap();
+        let segment = Segment {
+            offset: buffer_offset,
+            size: Some(data_len),
+        };
+        let mapping = device.map_memory(buffer_memory, segment.clone()).unwrap();
         std::ptr::copy_nonoverlapping(data.as_ptr() as *const u8, mapping, data_len as usize);
         device
-            .flush_mapped_memory_ranges(std::iter::once((
-                buffer_memory,
-                segment,
-            )))
+            .flush_mapped_memory_ranges(std::iter::once((buffer_memory, segment)))
             .unwrap();
         device.unmap_memory(buffer_memory);
     }

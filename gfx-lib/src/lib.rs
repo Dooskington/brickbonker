@@ -7,8 +7,8 @@ extern crate gfx_backend_metal as backend;
 #[cfg(all(unix, not(target_os = "macos")))]
 extern crate gfx_backend_vulkan as backend;
 
-pub extern crate image;
 extern crate gfx_hal;
+pub extern crate image;
 extern crate nalgebra_glm as glm;
 extern crate winit;
 
@@ -22,6 +22,6 @@ pub mod window;
 
 pub use gfx_hal::image::*;
 
-pub type Vector2f = nalgebra::Vector2::<f32>;
-pub type Point2f = nalgebra::Point2::<f32>;
-pub type Point2u = nalgebra::Point2::<u32>;
+pub type Vector2f = nalgebra::Vector2<f32>;
+pub type Point2f = nalgebra::Point2<f32>;
+pub type Point2u = nalgebra::Point2<u32>;

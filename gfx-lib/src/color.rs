@@ -64,5 +64,7 @@ impl Color {
 }
 
 impl Default for Color {
-    fn default() -> Self { COLOR_WHITE }
+    fn default() -> Self {
+        COLOR_WHITE
+    }
 }

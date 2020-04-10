@@ -33,7 +33,10 @@ pub fn run<T>(
     T: 'static,
 {
     let event_loop = EventLoop::new();
-    let window_size = LogicalSize::new((width as f32 * render_scale) as u32, (height as f32 * render_scale) as u32);
+    let window_size = LogicalSize::new(
+        (width as f32 * render_scale) as u32,
+        (height as f32 * render_scale) as u32,
+    );
     let window: WinitWindow = WindowBuilder::new()
         .with_title(title)
         .with_min_inner_size(window_size)
@@ -83,17 +86,27 @@ pub fn run<T>(
                 WinitWindowEvent::Resized(size) => {
                     println!("[Window] Resized to ({}, {})", size.width, size.height);
 
-                    renderer.resize(size.width, size.height, render_scale);
+                    renderer.resize(size.width, size.height);
                     window.request_redraw();
                 }
-                WinitWindowEvent::ScaleFactorChanged { scale_factor, new_inner_size } => {
-                    println!("[Window] Scale factor changed to {}. New inner size = {:?}", scale_factor, new_inner_size);
+                WinitWindowEvent::ScaleFactorChanged {
+                    scale_factor,
+                    new_inner_size,
+                } => {
+                    println!(
+                        "[Window] Scale factor changed to {}. New inner size = {:?}",
+                        scale_factor, new_inner_size
+                    );
 
                     window_state.dpi_scale_factor = scale_factor as f32;
-                    renderer.resize(new_inner_size.width, new_inner_size.height, render_scale);
+                    renderer.resize(new_inner_size.width, new_inner_size.height);
                     window.request_redraw();
                 }
-                WinitWindowEvent::KeyboardInput { input, is_synthetic, .. } => {
+                WinitWindowEvent::KeyboardInput {
+                    input,
+                    is_synthetic,
+                    ..
+                } => {
                     if is_synthetic {
                         // Synthetic key press events are generated for all keys pressed when a window gains focus.
                         // Likewise, synthetic key release events are generated for all keys pressed when a window goes out of focus.

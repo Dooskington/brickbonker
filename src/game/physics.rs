@@ -1,22 +1,21 @@
 use crate::game::*;
-use nalgebra::{RealField, Vector2};
+use nalgebra::Vector2;
 use ncollide2d::{
     pipeline::{CollisionGroups, ContactEvent},
-    shape::{Ball, Cuboid, Shape, ShapeHandle},
+    shape::{Shape, ShapeHandle},
 };
-use nphysics2d::force_generator::DefaultForceGeneratorSet;
-use nphysics2d::joint::DefaultJointConstraintSet;
-use nphysics2d::math::Velocity;
-use nphysics2d::object::{
-    Body, BodyHandle, BodyPartHandle, BodyStatus, ColliderDesc, ColliderHandle, DefaultBodyHandle,
-    DefaultBodySet, BodySet, DefaultColliderHandle, DefaultColliderSet, Ground, RigidBodyDesc,
+use nphysics2d::{
+    force_generator::DefaultForceGeneratorSet,
+    joint::DefaultJointConstraintSet,
+    math::Velocity,
+    object::{
+        Body, BodyPartHandle, BodySet, BodyStatus, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
+        DefaultColliderHandle, DefaultColliderSet, Ground, RigidBodyDesc,
+    },
+    world::{DefaultGeometricalWorld, DefaultMechanicalWorld},
 };
-use nphysics2d::world::{DefaultGeometricalWorld, DefaultMechanicalWorld};
-use nphysics2d::solver::IntegrationParameters;
-use nphysics2d::force_generator::ForceGenerator;
-use nphysics2d::math::{Force, ForceType};
-use specs::prelude::*;
 use shrev::EventChannel;
+use specs::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -58,14 +57,11 @@ impl PhysicsState {
             .integration_parameters
             .max_ccd_position_iterations = 20;
 
-        mechanical_world
-            .integration_parameters
-            .max_ccd_substeps = 2;
+        mechanical_world.integration_parameters.max_ccd_substeps = 2;
 
         let geometrical_world = DefaultGeometricalWorld::new();
         let joint_constraints = DefaultJointConstraintSet::new();
-        let mut force_generators = DefaultForceGeneratorSet::new();
-        force_generators.insert(Box::new(ContinuousForceGenerator::new()));
+        let force_generators = DefaultForceGeneratorSet::new();
 
         let body_handles = HashMap::new();
         let collider_handles = HashMap::new();
@@ -96,48 +92,6 @@ impl PhysicsState {
     }
 }
 
-pub struct ContinuousForceGenerator<N: RealField, Handle: BodyHandle> {
-    affected_parts: Vec<BodyPartHandle<Handle>>,
-    phantom: std::marker::PhantomData<N>,
-}
-
-impl<N: RealField, Handle: BodyHandle> ContinuousForceGenerator<N, Handle> {
-    pub fn new() -> Self {
-        ContinuousForceGenerator {
-            affected_parts: Vec::new(),
-            phantom: std::marker::PhantomData,
-        }
-    }
-
-    /// Add a body part to be affected by this force generator.
-    pub fn add_body_part(&mut self, body: BodyPartHandle<Handle>) {
-        self.affected_parts.push(body)
-    }
-}
-
-impl<N: RealField, Handle: BodyHandle> ForceGenerator<N, Handle> for ContinuousForceGenerator<N, Handle> {
-    fn apply(&mut self, _: &IntegrationParameters<N>, bodies: &mut dyn BodySet<N, Handle = Handle>) {
-        /*
-        let acceleration = self.acceleration;
-        self.affected_parts.retain(|h| {
-            if let Some(body) = bodies.get_mut(h.0) {
-                body.apply_force(
-                    h.1,
-                    &Force::new(acceleration.linear, acceleration.angular),
-                    ForceType::AccelerationChange,
-                    false,
-                );
-                true
-            } else {
-                false
-            }
-        });
-        */
-        if self.affected_parts.len() > 0 {
-            println!("apply continuous force to {} parts", self.affected_parts.len());
-        }
-    }
-}
 #[derive(Debug)]
 pub struct RigidbodyComponent {
     pub velocity: Velocity<f64>,
@@ -175,7 +129,12 @@ pub struct ColliderComponent {
 }
 
 impl ColliderComponent {
-    pub fn new<S: Shape<f64>>(shape: S, offset: Vector2<f64>, collision_groups: CollisionGroups, density: f64) -> Self {
+    pub fn new<S: Shape<f64>>(
+        shape: S,
+        offset: Vector2<f64>,
+        collision_groups: CollisionGroups,
+        density: f64,
+    ) -> Self {
         ColliderComponent {
             shape: ShapeHandle::new(shape),
             offset,
@@ -245,8 +204,13 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
         }
 
         // Handle inserted rigidbodies
-        for (ent, transform, rigidbody, ent_id) in
-            (&entities, &transforms, &mut rigidbodies, &self.inserted_bodies).join()
+        for (ent, transform, rigidbody, ent_id) in (
+            &entities,
+            &transforms,
+            &mut rigidbodies,
+            &self.inserted_bodies,
+        )
+            .join()
         {
             if let Some(rb_handle) = physics.ent_body_handles.remove(&ent) {
                 eprintln!("[RigidbodySendPhysicsSystem] Duplicate rigidbody found in physics world! Removing it. Entity Id = {}, Handle = {:?}", ent_id, rb_handle);
@@ -254,7 +218,10 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
             }
 
             let mut rigid_body = RigidBodyDesc::new()
-                .translation(Vector2::new(transform.pos_x * WORLD_UNIT_RATIO, transform.pos_y * WORLD_UNIT_RATIO))
+                .translation(Vector2::new(
+                    transform.pos_x * WORLD_UNIT_RATIO,
+                    transform.pos_y * WORLD_UNIT_RATIO,
+                ))
                 .rotation(0.0)
                 .gravity_enabled(false)
                 .status(BodyStatus::Dynamic)
@@ -307,12 +274,21 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
         }
 
         // Handle modified transforms
-        for (ent, transform, _, _) in (&entities, &transforms, &rigidbodies, &self.modified_transforms).join()
+        for (ent, transform, _, _) in (
+            &entities,
+            &transforms,
+            &rigidbodies,
+            &self.modified_transforms,
+        )
+            .join()
         {
             if let Some(rb_handle) = physics.ent_body_handles.get(&ent).cloned() {
-            let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
-            // TODO transform component should have it's own isometry already
-            rb.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64 * WORLD_UNIT_RATIO, transform.pos_y as f64 * WORLD_UNIT_RATIO));
+                let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
+                // TODO transform component should have it's own isometry already
+                rb.set_position(nalgebra::Isometry2::translation(
+                    transform.pos_x as f64 * WORLD_UNIT_RATIO,
+                    transform.pos_y as f64 * WORLD_UNIT_RATIO,
+                ));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
@@ -347,7 +323,10 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         ReadStorage<'a, RigidbodyComponent>,
     );
 
-    fn run(&mut self, (entities, mut physics, colliders, transforms, rigidbodies): Self::SystemData) {
+    fn run(
+        &mut self,
+        (entities, mut physics, colliders, transforms, rigidbodies): Self::SystemData,
+    ) {
         self.inserted_colliders.clear();
         self.modified_colliders.clear();
         self.removed_colliders.clear();
@@ -417,7 +396,8 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             physics.ent_collider_handles.insert(ent, collider_handle);
             println!(
                 "[ColliderSendPhysicsSystem] Inserted collider. Entity Id = {}, Handle = {:?}",
-                ent.id(), collider_handle
+                ent.id(),
+                collider_handle
             );
         }
 
@@ -425,7 +405,10 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         for (ent, _, _) in (&entities, &colliders, &self.modified_colliders).join() {
             if let Some(_) = physics.ent_collider_handles.get(&ent).cloned() {
                 // TODO
-                println!("[ColliderSendPhysicsSystem] Modified collider: {}", ent.id());
+                println!(
+                    "[ColliderSendPhysicsSystem] Modified collider: {}",
+                    ent.id()
+                );
             } else {
                 eprintln!("[ColliderSendPhysicsSystem] Failed to update collider because it didn't exist! Entity Id = {}", ent.id());
             }
@@ -445,10 +428,21 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         }
 
         // Handle modified transforms (ignoring rigidbodies, because they will update themselves)
-        for (ent, transform, _, _, _) in (&entities, &transforms, &colliders, &self.modified_transforms, !&rigidbodies).join() {
+        for (ent, transform, _, _, _) in (
+            &entities,
+            &transforms,
+            &colliders,
+            &self.modified_transforms,
+            !&rigidbodies,
+        )
+            .join()
+        {
             if let Some(collider_handle) = physics.ent_collider_handles.get(&ent).cloned() {
                 let collider = physics.colliders.get_mut(collider_handle).unwrap();
-                collider.set_position(nalgebra::Isometry2::translation(transform.pos_x as f64 * WORLD_UNIT_RATIO, transform.pos_y as f64 * WORLD_UNIT_RATIO));
+                collider.set_position(nalgebra::Isometry2::translation(
+                    transform.pos_x as f64 * WORLD_UNIT_RATIO,
+                    transform.pos_y as f64 * WORLD_UNIT_RATIO,
+                ));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
@@ -468,7 +462,10 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
 pub struct WorldStepPhysicsSystem;
 
 impl<'a> System<'a> for WorldStepPhysicsSystem {
-    type SystemData = (WriteExpect<'a, PhysicsState>, WriteExpect<'a, EventChannel<CollisionEvent>>);
+    type SystemData = (
+        WriteExpect<'a, PhysicsState>,
+        WriteExpect<'a, EventChannel<CollisionEvent>>,
+    );
 
     fn run(&mut self, (mut physics, mut collision_events): Self::SystemData) {
         physics.step();
@@ -476,16 +473,20 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
         for event in physics.geometrical_world.contact_events() {
             let collision_event = match event {
                 ContactEvent::Started(handle1, handle2) => {
-                    if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) =
-                        physics.geometrical_world.contact_pair(
-                            &physics.colliders,
-                            *handle1,
-                            *handle2,
-                            false,
-                        )
+                    if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) = physics
+                        .geometrical_world
+                        .contact_pair(&physics.colliders, *handle1, *handle2, false)
                     {
-                        let entity_a = collider_a.user_data().unwrap().downcast_ref::<Entity>().cloned();
-                        let entity_b = collider_b.user_data().unwrap().downcast_ref::<Entity>().cloned();
+                        let entity_a = collider_a
+                            .user_data()
+                            .unwrap()
+                            .downcast_ref::<Entity>()
+                            .cloned();
+                        let entity_b = collider_b
+                            .user_data()
+                            .unwrap()
+                            .downcast_ref::<Entity>()
+                            .cloned();
                         let normal = if let Some(c) = manifold.deepest_contact().cloned() {
                             Some(c.contact.normal.into_inner())
                         } else {

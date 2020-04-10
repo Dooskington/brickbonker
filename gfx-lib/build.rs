@@ -1,11 +1,17 @@
-extern crate glsl_to_spirv;
+//extern crate glsl_to_spirv;
 
-use glsl_to_spirv::ShaderType;
+//use glsl_to_spirv::ShaderType;
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // TODO Disabled for now, as rerun-if-changed doesn't work for directories.
+    // It also has no way to notice new files.
+    /*
     // Create destination path if necessary
-    std::fs::create_dir_all("res/shaders/bin")?;
+    if !std::path::Path::new("res/shaders/bin/").exists() {
+        std::fs::create_dir_all("res/shaders/bin")?;
+        println!("Created res/shaders/bin/");
+    }
 
     for entry in std::fs::read_dir("res/shaders/src")? {
         let entry = entry?;
@@ -16,8 +22,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let path = entry.path();
 
+        println!("TESTING: {:?}", path);
+
         // Tell the build script to only run again if we modified these shaders
-        println!("cargo:rerun-if-changed={:#?}", path);
+        //println!("cargo:rerun-if-changed={:#?}", path);
 
         // Only support vertex and fragment shaders
         let shader_type = path
@@ -51,6 +59,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     println!("Shaders compiled.");
-
+    */
     Ok(())
 }

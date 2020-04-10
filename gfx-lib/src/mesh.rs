@@ -1,4 +1,4 @@
-use crate::{color::Color, sprite::SpriteRegion, Vector2f, Point2f};
+use crate::{color::Color, sprite::SpriteRegion, Point2f, Vector2f};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]

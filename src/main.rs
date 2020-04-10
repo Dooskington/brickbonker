@@ -1,18 +1,17 @@
 mod game;
-mod physics;
 
-use crate::game::{GameState, RenderCommander};
+use game::{physics::PhysicsState, render::RenderCommander, GameState};
+
 use gfx::{
     color::*,
     image::*,
-    input::{InputState, VirtualKeyCode},
+    input::InputState,
     renderer::*,
     sprite::*,
     texture::*,
     window::{self, *},
 };
 use nalgebra::{Point2, Vector2};
-use physics::PhysicsState;
 use specs::prelude::*;
 
 fn main() {
@@ -28,7 +27,7 @@ fn main() {
         window_height,
         render_scale,
         state,
-        move |game, renderer| {
+        move |_game, renderer| {
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
             import_texture(3, "res/textures/font.png", renderer);
@@ -44,7 +43,7 @@ fn main() {
             game.physics_dispatcher.dispatch(&mut game.world);
             game.world.maintain();
         },
-        move |game, ticks, lerp, window, renderer| {
+        move |game, _ticks, lerp, window, renderer| {
             game.world.write_resource::<PhysicsState>().lerp = lerp;
             // Process commands into batches and send to the renderer
             let mut commands = game.world.write_resource::<RenderCommander>().commands();

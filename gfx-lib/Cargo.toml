@@ -5,7 +5,7 @@ authors = ["Declan Hopkins <hopkins.declan@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-winit = { git = "https://github.com/rust-windowing/winit" }
+winit = { git = "https://github.com/chemicstry/winit/", branch = "optional_drag_and_drop" }
 nalgebra = "0.20.0"
 nalgebra-glm = "0.6.0"
 image = "0.22.3"
