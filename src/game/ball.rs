@@ -15,7 +15,7 @@ use specs::prelude::*;
 
 pub const BALL_COLLIDER_RADIUS: f64 = 3.0;
 pub const BALL_MAX_LINEAR_VELOCITY: f64 = 10.0;
-pub const BALL_DEFAULT_FORCE: f64 = 5.0;
+pub const BALL_DEFAULT_FORCE: f64 = 6.0;
 
 #[derive(Clone, Debug)]
 pub struct SpawnBallEvent {
@@ -130,6 +130,8 @@ impl<'a> System<'a> for BallSystem {
                     vel = vel.normalize()
                         * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(vel, 0.0);
+                    println!("reflected off paddle: {:?}", ball.velocity);
+
                     continue;
                 }
 
@@ -142,6 +144,8 @@ impl<'a> System<'a> for BallSystem {
                     reflected_vel = reflected_vel.normalize()
                         * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(reflected_vel, vel.angular);
+
+                    println!("reflected off wall/brick: {:?}", ball.velocity);
 
                     crate::game::audio::test_audio();
                 } else {
@@ -166,7 +170,7 @@ impl<'a> System<'a> for BallSystem {
 
             // If the ball was bounced this tick, send it back to where it was last tick just to avoid any double collisions or such issues
             if balls_bounced_this_tick.contains(ent.id()) {
-                transform.position = transform.last_position;
+                //transform.position = transform.last_position;
             }
 
             // Directly set the ball velocity every tick to keep the physics engine from affecting it
@@ -174,7 +178,7 @@ impl<'a> System<'a> for BallSystem {
             rigidbody.velocity = ball.velocity;
 
             // TODO replace this with a sensor collider
-            if transform.position.y > 235.0 {
+            if transform.position.y > 240.0 {
                 ents.delete(ent).expect("Failed to delete ball ent!");
 
                 spawn_ball_events.single_write(SpawnBallEvent {

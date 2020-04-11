@@ -229,6 +229,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 .status(rigidbody.status)
                 .velocity(rigidbody.velocity)
                 .mass(rigidbody.mass)
+                .linear_motion_interpolation_enabled(true)
                 // TODO uncomment once bugfix is released:
                 // https://github.com/rustsim/nphysics/pull/254
                 //.max_linear_velocity(rigidbody.max_linear_velocity)
@@ -462,10 +463,12 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
 
     fn run(&mut self, (mut physics, mut collision_events): Self::SystemData) {
         physics.step();
+        //println!("step");
 
         for event in physics.geometrical_world.contact_events() {
             let new_collision_events = match event {
                 ContactEvent::Started(handle1, handle2) => {
+                    println!("contact started: handle1: {:?}, handle2: {:?}", handle1, handle2);
                     if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) = physics
                         .geometrical_world
                         .contact_pair(&physics.colliders, *handle1, *handle2, true)
@@ -519,11 +522,12 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                         Some(vec![event_a, event_b])
                     } else {
                         eprintln!("No contact pair found for collision!");
+
                         None
                     }
                 }
-                ContactEvent::Stopped(_handle1, _handle2) => {
-                    //println!("contact stopped");
+                ContactEvent::Stopped(handle1, handle2) => {
+                    println!("contact stopped: handle1: {:?}, handle2: {:?}", handle1, handle2);
                     // TODO
                     None
                 }
