@@ -18,7 +18,7 @@ fn main() {
     let window_title: &str = "Brickbonker";
     let window_width: u32 = 320;
     let window_height: u32 = 240;
-    let render_scale: f32 = 2.0;
+    let render_scale: f32 = 1.5;
     let state = GameState::new(window_width, window_height);
 
     window::run(

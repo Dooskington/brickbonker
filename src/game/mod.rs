@@ -67,12 +67,12 @@ impl<'a, 'b> GameState<'a, 'b> {
             ncollide2d::pipeline::CollisionGroups::new().with_membership(&[1]);
 
         // Spawn player paddle
-        let paddle_position = Vector2d::new(width as f64 / 2.0, height as f64 - 8.0);
+        let paddle_position = Vector2d::new(width as f64 / 2.0, height as f64 - 10.0);
         let paddle_ent = world
             .create_entity()
             .with(TransformComponent::new(
                 paddle_position,
-                Point2f::new(32.0, 16.0),
+                Point2f::new(30.0, 16.0),
                 Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
             ))
             .with(ColliderComponent::new(
