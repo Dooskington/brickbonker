@@ -1,6 +1,6 @@
 use crate::game::{
     brick::BreakableComponent,
-    paddle::PlayerPaddleComponent,
+    paddle::{PlayerPaddleComponent, PADDLE_HIT_BOX_WIDTH},
     physics::{ColliderComponent, CollisionEvent, PhysicsState, RigidbodyComponent},
     render::SpriteComponent,
     transform::TransformComponent,
@@ -13,7 +13,7 @@ use nphysics2d::{math::Velocity, object::BodyStatus};
 use shrev::EventChannel;
 use specs::prelude::*;
 
-const BALL_MAX_LINEAR_VELOCITY: f64 = 15.0;
+const BALL_MAX_LINEAR_VELOCITY: f64 = 10.0;
 
 #[derive(Clone, Debug)]
 pub struct SpawnBallEvent {
@@ -100,16 +100,30 @@ impl<'a> System<'a> for BallSystem {
 
             if let Some(ball) = balls.get_mut(entity_a) {
                 if let Some(_) = paddles.get(entity_b) {
-                    let x_vel_multiplier = 0.97;
-                    let y_vel_multiplier = -0.97;
-                    let mut vel = ball.velocity.linear;
-                    vel.x *= x_vel_multiplier;
-                    vel.y = y_vel_multiplier * vel.y.abs();
+                    let paddle_transform = transforms.get(entity_b).unwrap();
+                    let hit_x = match event.collision_point {
+                        Some(p) => p.x,
+                        None => {
+                            println!("Ball collision had no collision_point! ball ent = {}, other ent = {}", entity_a.id(), entity_b.id());
 
-                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
+                            // If there was no concrete collision point calculated, just use the balls current x position
+                            let ball_transform = transforms.get(entity_a).unwrap();
+                            ball_transform.position.x
+                        }
+                    };
+
+                    // Get the x hit value, relative to the paddle hit box width. -1.0 means the ball hit the far left side of the paddle, while 1.0 means it hit the far right.
+                    let hit_x_ratio =
+                        (hit_x - paddle_transform.position.x) / (PADDLE_HIT_BOX_WIDTH / 2.0);
+
+                    let mut vel = ball.velocity.linear;
+                    vel.x = hit_x_ratio * 4.0;
+                    vel.y = vel.y.abs() * -0.975;
+
+                    vel = vel.normalize()
+                        * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(vel, 0.0);
 
-                    println!("Hit paddle!");
                     continue;
                 }
 
@@ -118,48 +132,19 @@ impl<'a> System<'a> for BallSystem {
                     let normal = -normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
-                    let mut reflected_vel = vel.linear - (2.0 * dot) * normal;
-                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
-                    ball.velocity = Velocity::new(reflected_vel * 1.01, vel.angular);
-
-                    crate::game::audio::test_audio();
-
-                } else {
-                    println!("ERROR! entity_a collision had no normal!");
-                }
-            } else if let Some(ball) = balls.get_mut(entity_b) {
-                // If the ball hit a paddle, propel it upwards
-                if let Some(_) = paddles.get(entity_a) {
-                    let x_vel_multiplier = 0.97;
-                    let y_vel_multiplier = -0.97;
-                    let mut vel = ball.velocity.linear;
-                    vel.x = -vel.x * x_vel_multiplier;
-                    vel.y = y_vel_multiplier * vel.y.abs();
-
-                    vel = vel.normalize() * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
-                    ball.velocity = Velocity::new(vel, 0.0);
-
-                    println!("Hit paddle!");
-                    continue;
-                }
-
-                if let Some(normal) = event.normal {
-                    let vel = ball.velocity;
-                    let normal = normal.normalize();
-                    let dot = vel.linear.dot(&normal);
-
-                    let mut reflected_vel = vel.linear - (2.0 * dot) * normal;
-                    reflected_vel = reflected_vel.normalize() * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
-                    ball.velocity = Velocity::new(reflected_vel * 1.01, vel.angular);
+                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * 1.075;
+                    reflected_vel = reflected_vel.normalize()
+                        * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
+                    ball.velocity = Velocity::new(reflected_vel, vel.angular);
 
                     crate::game::audio::test_audio();
                 } else {
-                    println!("ERROR! entity_b collision had no normal!");
+                    println!(
+                        "Ball collision had no normal! ball ent = {}, other ent = {}",
+                        entity_a.id(),
+                        entity_b.id()
+                    );
                 }
-            } else {
-                // TODO
-
-                println!("ERROR! entity_a AND entity_b were not rigidbodies");
             }
         }
 
@@ -193,26 +178,6 @@ impl<'a> System<'a> for BallSystem {
 
                 continue;
             }
-            */
-
-            /*
-            // Handle the collision (if any)
-            match collision {
-                // Paddle collision
-                BallCollision::Paddle { x_hit_percentage } => {
-                    let paddle_hit_force: f32 = 2.0;
-                    let temp_velocity = Vector2f::new(ball.vel_x, ball.vel_y);
-                    ball.vel_x = DEFAULT_BALL_FORCE * x_hit_percentage * paddle_hit_force;
-
-                    // Always propel the ball upwards - this fixes issues when the ball hits the side or underneath the paddle.
-                    ball.vel_y = -1.0 * (ball.vel_y.abs() * 0.9);
-
-                    let normalized = Vector2::<f32>::new(ball.vel_x, ball.vel_y).normalize();
-                    let new_velocity = normalized * temp_velocity.magnitude();
-
-                    ball.vel_x = new_velocity.x;
-                    ball.vel_y = new_velocity.y;
-                }
             */
         }
     }

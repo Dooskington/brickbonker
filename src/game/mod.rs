@@ -25,6 +25,7 @@ use transform::TransformComponent;
 pub type Vector2f = nalgebra::Vector2<f32>;
 pub type Vector2d = nalgebra::Vector2<f64>;
 pub type Point2f = nalgebra::Point2<f32>;
+pub type Point2d = nalgebra::Point2<f64>;
 
 pub const PIXELS_PER_WORLD_UNIT: u32 = 32;
 pub const WORLD_UNIT_RATIO: f64 = (1.0 / PIXELS_PER_WORLD_UNIT as f64);
@@ -83,14 +84,14 @@ impl<'a, 'b> GameState<'a, 'b> {
             })
             .with(ColliderComponent::new(
                 Cuboid::new(Vector2::new(
-                    29.0 * WORLD_UNIT_RATIO,
-                    4.0 * WORLD_UNIT_RATIO,
+                    (paddle::PADDLE_HIT_BOX_WIDTH / 2.0) * WORLD_UNIT_RATIO,
+                    (paddle::PADDLE_HIT_BOX_HEIGHT / 2.0) * WORLD_UNIT_RATIO,
                 )),
                 Vector2::zeros(),
                 solid_collision_groups,
                 0.0,
             ))
-            .with(PlayerPaddleComponent::default())
+            .with(PlayerPaddleComponent::new(width))
             .with(SpriteComponent {
                 color: COLOR_WHITE,
                 spritesheet_tex_id: 2,
@@ -200,11 +201,12 @@ impl<'a, 'b> GameState<'a, 'b> {
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
                 position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
-                linear_velocity: Vector2d::new(4.35, -5.5),
+                linear_velocity: Vector2d::new(2.5, -2.5),
                 //owning_paddle_ent: Some(paddle_ent),
                 owning_paddle_ent: None,
             });
 
+        /*
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
@@ -231,6 +233,7 @@ impl<'a, 'b> GameState<'a, 'b> {
                 //owning_paddle_ent: Some(paddle_ent),
                 owning_paddle_ent: None,
             });
+            */
 
         // Bottom collider
         world

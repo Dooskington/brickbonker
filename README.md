@@ -3,7 +3,7 @@
 ## TODO
 - [x] Move paddle with keyboard
     - A/D or Left/Right keys to move
-- [ ] Restrict paddle to screen
+- [x] Restrict paddle to screen
     - Need to get window size from game state and perform checks in paddle system
 - [x] Ball entity
 - [x] Ball bouncing off walls

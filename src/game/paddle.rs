@@ -1,12 +1,24 @@
-use crate::game::{Vector2d, ball::BallComponent, transform::TransformComponent};
+use crate::game::{ball::BallComponent, transform::TransformComponent, Vector2d};
 use gfx::input::{InputState, VirtualKeyCode};
 use specs::prelude::*;
 
-#[derive(Default)]
+pub const PADDLE_HIT_BOX_WIDTH: f64 = 58.0;
+pub const PADDLE_HIT_BOX_HEIGHT: f64 = 8.0;
+
 pub struct PlayerPaddleComponent {
     pub held_ball_ent: Option<Entity>,
-    pub held_ball_pos_x: f32,
-    pub held_ball_pos_y: f32,
+    pub held_ball_position: Vector2d,
+    pub level_width: u32,
+}
+
+impl PlayerPaddleComponent {
+    pub fn new(level_width: u32) -> Self {
+        PlayerPaddleComponent {
+            held_ball_ent: None,
+            held_ball_position: Vector2d::zeros(),
+            level_width,
+        }
+    }
 }
 
 impl Component for PlayerPaddleComponent {
@@ -37,6 +49,16 @@ impl<'a> System<'a> for PlayerPaddleSystem {
             }
 
             transform.position += movement_linear_velocity;
+
+            // Restrain paddle to the level
+            let paddle_x_min = 8.0;
+            let paddle_x_max = paddle.level_width as f64 - 8.0;
+            let paddle_half_width = PADDLE_HIT_BOX_WIDTH / 2.0;
+            if (transform.position.x - paddle_half_width) < paddle_x_min {
+                transform.position.x = paddle_x_min + paddle_half_width;
+            } else if (transform.position.x + paddle_half_width) > paddle_x_max {
+                transform.position.x = paddle_x_max - paddle_half_width;
+            }
 
             /*
             paddle.held_ball_pos_x = transform.pos_x as f64;

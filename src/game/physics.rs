@@ -30,6 +30,7 @@ pub struct CollisionEvent {
     pub entity_b: Option<Entity>,
     pub collider_handle_b: DefaultColliderHandle,
     pub normal: Option<Vector2<f64>>,
+    pub collision_point: Option<Point2d>,
     pub ty: CollisionType,
 }
 
@@ -456,7 +457,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
         physics.step();
 
         for event in physics.geometrical_world.contact_events() {
-            let collision_event = match event {
+            let new_collision_events = match event {
                 ContactEvent::Started(handle1, handle2) => {
                     if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) = physics
                         .geometrical_world
@@ -472,20 +473,43 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                             .unwrap()
                             .downcast_ref::<Entity>()
                             .cloned();
-                        let normal = if let Some(c) = manifold.deepest_contact().cloned() {
-                            Some(c.contact.normal.into_inner())
-                        } else {
-                            None
-                        };
 
-                        Some(CollisionEvent {
+                        let (normal, collision_a_point, collision_b_point) =
+                            if let Some(c) = manifold.deepest_contact().cloned() {
+                                let collision_a_point =
+                                    c.contact.world1 * (PIXELS_PER_WORLD_UNIT as f64);
+                                let collision_b_point =
+                                    c.contact.world2 * (PIXELS_PER_WORLD_UNIT as f64);
+                                (
+                                    Some(c.contact.normal.into_inner()),
+                                    Some(collision_a_point),
+                                    Some(collision_b_point),
+                                )
+                            } else {
+                                (None, None, None)
+                            };
+
+                        let event_a = CollisionEvent {
                             entity_a,
                             collider_handle_a: handle_a,
                             entity_b,
                             collider_handle_b: handle_b,
                             normal,
+                            collision_point: collision_a_point,
                             ty: CollisionType::Started,
-                        })
+                        };
+
+                        let event_b = CollisionEvent {
+                            entity_a: entity_b,
+                            collider_handle_a: handle_b,
+                            entity_b: entity_a,
+                            collider_handle_b: handle_a,
+                            normal,
+                            collision_point: collision_b_point,
+                            ty: CollisionType::Started,
+                        };
+
+                        Some(vec![event_a, event_b])
                     } else {
                         eprintln!("No contact pair found for collision!");
                         None
@@ -498,8 +522,8 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                 }
             };
 
-            if let Some(ev) = collision_event {
-                collision_events.single_write(ev);
+            if let Some(events) = new_collision_events {
+                collision_events.iter_write(events);
             }
         }
     }
