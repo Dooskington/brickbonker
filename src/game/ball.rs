@@ -1,7 +1,7 @@
 use crate::game::{
-    brick::BreakableComponent,
+    brick::BrickComponent,
     paddle::{PlayerPaddleComponent, PADDLE_HIT_BOX_WIDTH},
-    physics::{ColliderComponent, CollisionEvent, PhysicsState, RigidbodyComponent},
+    physics::{ColliderComponent, CollisionEvent, RigidbodyComponent},
     render::SpriteComponent,
     transform::TransformComponent,
     LevelState, Point2f, Vector2d, Vector2f,
@@ -53,13 +53,12 @@ pub struct BallSystem {
 impl<'a> System<'a> for BallSystem {
     type SystemData = (
         Entities<'a>,
-        WriteExpect<'a, PhysicsState>,
         Read<'a, LevelState>,
         Read<'a, EventChannel<CollisionEvent>>,
         Write<'a, EventChannel<SpawnBallEvent>>,
         WriteStorage<'a, TransformComponent>,
         WriteStorage<'a, BallComponent>,
-        WriteStorage<'a, BreakableComponent>,
+        ReadStorage<'a, BrickComponent>,
         ReadStorage<'a, PlayerPaddleComponent>,
         WriteStorage<'a, RigidbodyComponent>,
     );
@@ -77,13 +76,12 @@ impl<'a> System<'a> for BallSystem {
         &mut self,
         (
             ents,
-            mut physics,
             level,
             collision_events,
             mut spawn_ball_events,
             mut transforms,
             mut balls,
-            mut breakables,
+            bricks,
             paddles,
             mut rigidbodies,
         ): Self::SystemData,
@@ -100,12 +98,6 @@ impl<'a> System<'a> for BallSystem {
             };
 
             if let Some(ball) = balls.get_mut(entity_a) {
-                if balls_bounced_this_tick.contains(entity_a.id()) {
-                    continue;
-                }
-
-                balls_bounced_this_tick.add(entity_a.id());
-
                 if let Some(_) = paddles.get(entity_b) {
                     let paddle_transform = transforms.get(entity_b).unwrap();
                     let hit_x = match event.collision_point {
@@ -124,8 +116,8 @@ impl<'a> System<'a> for BallSystem {
                         (hit_x - paddle_transform.position.x) / (PADDLE_HIT_BOX_WIDTH / 2.0);
 
                     let mut vel = ball.velocity.linear;
+                    vel.y = ((vel.x.abs() * 0.25) + vel.y) * -0.97;
                     vel.x = hit_x_ratio * BALL_DEFAULT_FORCE;
-                    vel.y *= -0.98;
 
                     vel = vel.normalize()
                         * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
@@ -136,16 +128,26 @@ impl<'a> System<'a> for BallSystem {
                 }
 
                 if let Some(normal) = event.normal {
+                    let ent_b_is_brick = bricks.get(entity_b).is_some();
+                    // If the ball already bounced this tick, and this is a brick, just ignore it
+                    if ent_b_is_brick {
+                        if balls_bounced_this_tick.contains(entity_a.id()) {
+                            continue;
+                        }
+
+                        balls_bounced_this_tick.add(entity_a.id());
+                    }
+
                     let vel = ball.velocity;
                     let normal = -normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
-                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * 1.075;
+                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * 1.04;
                     reflected_vel = reflected_vel.normalize()
                         * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(reflected_vel, vel.angular);
 
-                    println!("reflected off wall/brick: {:?}", ball.velocity);
+                    println!("reflected off wall/brick: {:?}, normal was {:?}", ball.velocity, normal);
 
                     crate::game::audio::test_audio();
                 } else {
@@ -248,7 +250,7 @@ impl<'a> System<'a> for SpawnBallSystem {
                         w: 32,
                         h: 32,
                     },
-                    layer: 0,
+                    layer: 2,
                 },
             );
 

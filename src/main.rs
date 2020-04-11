@@ -31,6 +31,7 @@ fn main() {
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
             import_texture(3, "res/textures/font.png", renderer);
+            import_texture(4, "res/textures/bg.png", renderer);
         },
         move |game, _window, input, dt| {
             game.world.insert::<InputState>(input.clone());
@@ -72,6 +73,21 @@ fn main() {
                     },
                 });
             }
+
+            // Level background
+            commands.push(gfx::renderer::RenderCommand {
+                transparency: Transparency::Opaque,
+                shader_program_id: 1,
+                tex_id: 4,
+                layer: 0,
+                data: Renderable::Quad {
+                    bl: (0.0, 400.0),
+                    br: (400.0, 400.0),
+                    tl: (0.0, 0.0),
+                    tr: (400.0, 0.0),
+                    color: COLOR_WHITE,
+                },
+            });
 
             let batches = renderer.process_commands(commands);
             renderer.render(window.dpi_scale_factor, batches);

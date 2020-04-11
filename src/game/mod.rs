@@ -7,14 +7,13 @@ pub mod render;
 pub mod transform;
 
 use ball::{BallSystem, SpawnBallEvent, SpawnBallSystem};
-use brick::BreakableComponent;
+use brick::{BrickSystem, BrickComponent};
 use gfx::{color::*, sprite::SpriteRegion};
 use nalgebra::Vector2;
 use ncollide2d::shape::Cuboid;
-use nphysics2d::object::BodyStatus;
 use paddle::{PlayerPaddleComponent, PlayerPaddleSystem};
 use physics::{
-    ColliderComponent, ColliderSendPhysicsSystem, PhysicsState, RigidbodyComponent,
+    ColliderComponent, ColliderSendPhysicsSystem, PhysicsState,
     RigidbodyReceivePhysicsSystem, RigidbodySendPhysicsSystem, WorldStepPhysicsSystem,
 };
 use render::{RenderState, SpriteComponent, SpriteRenderSystem};
@@ -52,6 +51,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         let mut tick_dispatcher = DispatcherBuilder::new()
             .with(PlayerPaddleSystem, "player_paddle", &[])
             .with(BallSystem::default(), "ball", &[])
+            .with(BrickSystem::default(), "brick", &[])
             .with_thread_local(SpawnBallSystem::default())
             .with_thread_local(SpriteRenderSystem::default())
             .build();
@@ -86,7 +86,7 @@ impl<'a, 'b> GameState<'a, 'b> {
                 )),
                 Vector2::zeros(),
                 solid_collision_groups,
-                0.0,
+                1.0,
             ))
             .with(PlayerPaddleComponent::new(width))
             .with(SpriteComponent {
@@ -123,9 +123,7 @@ impl<'a, 'b> GameState<'a, 'b> {
                         solid_collision_groups,
                         0.0,
                     ))
-                    .with(BreakableComponent {
-                        hp: brick::BRICK_DEFAULT_HP,
-                    })
+                    .with(BrickComponent::new(brick::BRICK_DEFAULT_HP))
                     .with(SpriteComponent {
                         color: COLOR_WHITE,
                         spritesheet_tex_id: 2,
@@ -135,7 +133,7 @@ impl<'a, 'b> GameState<'a, 'b> {
                             w: brick::BRICK_SPRITE_WIDTH,
                             h: brick::BRICK_SPRITE_HEIGHT,
                         },
-                        layer: 0,
+                        layer: 2,
                     })
                     .build();
             }

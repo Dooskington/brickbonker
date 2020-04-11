@@ -131,6 +131,7 @@ pub struct ColliderComponent {
     pub offset: Vector2<f64>,
     pub collision_groups: CollisionGroups,
     pub density: f64,
+    pub ccd_enabled: bool,
 }
 
 impl ColliderComponent {
@@ -145,6 +146,8 @@ impl ColliderComponent {
             offset,
             collision_groups,
             density,
+            // CCD seems kinda buggy at the moment https://github.com/rustsim/nphysics/issues/255
+            ccd_enabled: false,
         }
     }
 }
@@ -380,7 +383,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 .density(collider.density)
                 .translation(translation)
                 .margin(0.02)
-                .ccd_enabled(true)
+                .ccd_enabled(collider.ccd_enabled)
                 .collision_groups(collider.collision_groups.clone())
                 .user_data(ent)
                 .build(BodyPartHandle(parent_body_handle, 0));
@@ -468,10 +471,10 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
         for event in physics.geometrical_world.contact_events() {
             let new_collision_events = match event {
                 ContactEvent::Started(handle1, handle2) => {
-                    println!("contact started: handle1: {:?}, handle2: {:?}", handle1, handle2);
+                    //println!("contact started: handle1: {:?}, handle2: {:?}", handle1, handle2);
                     if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) = physics
                         .geometrical_world
-                        .contact_pair(&physics.colliders, *handle1, *handle2, true)
+                        .contact_pair(&physics.colliders, *handle1, *handle2, false)
                     {
                         let entity_a = collider_a
                             .user_data()
@@ -527,7 +530,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                     }
                 }
                 ContactEvent::Stopped(handle1, handle2) => {
-                    println!("contact stopped: handle1: {:?}, handle2: {:?}", handle1, handle2);
+                    //println!("contact stopped: handle1: {:?}, handle2: {:?}", handle1, handle2);
                     // TODO
                     None
                 }
