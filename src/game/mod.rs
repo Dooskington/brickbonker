@@ -35,6 +35,10 @@ const PADDLE_SPRITE_HEIGHT: u32 = 32;
 const PADDLE_SCALE_X: f32 = 1.0;
 const PADDLE_SCALE_Y: f32 = 1.0;
 
+const LEVEL_BRICKS_Y_OFFSET: f64 = 16.0;
+const LEVEL_BRICKS_WIDTH: u32 = 10;
+const LEVEL_BRICKS_HEIGHT: u32 = 5;
+
 pub struct GameState<'a, 'b> {
     pub world: World,
     pub tick_dispatcher: Dispatcher<'a, 'b>,
@@ -97,6 +101,45 @@ impl<'a, 'b> GameState<'a, 'b> {
                 layer: 1,
             })
             .build();
+
+        // Spawn bricks
+        for y in 0..LEVEL_BRICKS_HEIGHT {
+            for x in 0..LEVEL_BRICKS_WIDTH {
+                let position = Vector2d::new(
+                    x as f64 * brick::BRICK_SPRITE_WIDTH as f64,
+                    LEVEL_BRICKS_Y_OFFSET + (y as f64 * brick::BRICK_SPRITE_HEIGHT as f64),
+                );
+
+                world
+                    .create_entity()
+                    .with(TransformComponent::new(
+                        position,
+                        Point2f::origin(),
+                        Vector2f::new(1.0, 1.0),
+                    ))
+                    .with(ColliderComponent::new(
+                        Cuboid::new(Vector2::new(0.5, 0.25)),
+                        Vector2::new(16.0, 8.0),
+                        solid_collision_groups,
+                        0.0,
+                    ))
+                    .with(BreakableComponent {
+                        hp: brick::BRICK_DEFAULT_HP,
+                    })
+                    .with(SpriteComponent {
+                        color: COLOR_WHITE,
+                        spritesheet_tex_id: 2,
+                        region: SpriteRegion {
+                            x: 96,
+                            y: 0,
+                            w: brick::BRICK_SPRITE_WIDTH,
+                            h: brick::BRICK_SPRITE_HEIGHT,
+                        },
+                        layer: 0,
+                    })
+                    .build();
+            }
+        }
 
         // Spawn initial ball
         world

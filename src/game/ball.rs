@@ -13,7 +13,7 @@ use nphysics2d::{math::Velocity, object::BodyStatus};
 use shrev::EventChannel;
 use specs::prelude::*;
 
-pub const BALL_COLLIDER_RADIUS: f64 = 4.0;
+pub const BALL_COLLIDER_RADIUS: f64 = 3.0;
 pub const BALL_MAX_LINEAR_VELOCITY: f64 = 10.0;
 pub const BALL_DEFAULT_FORCE: f64 = 5.0;
 
@@ -88,6 +88,7 @@ impl<'a> System<'a> for BallSystem {
             mut rigidbodies,
         ): Self::SystemData,
     ) {
+        let mut balls_bounced_this_tick: BitSet = BitSet::new();
         for event in collision_events.read(&mut self.collision_event_reader.as_mut().unwrap()) {
             // Get the entities involved in the event, ignoring it entirely if either of them are not an entity
             let (entity_a, entity_b) = {
@@ -99,6 +100,12 @@ impl<'a> System<'a> for BallSystem {
             };
 
             if let Some(ball) = balls.get_mut(entity_a) {
+                if balls_bounced_this_tick.contains(entity_a.id()) {
+                    continue;
+                }
+
+                balls_bounced_this_tick.add(entity_a.id());
+
                 if let Some(_) = paddles.get(entity_b) {
                     let paddle_transform = transforms.get(entity_b).unwrap();
                     let hit_x = match event.collision_point {
@@ -118,12 +125,11 @@ impl<'a> System<'a> for BallSystem {
 
                     let mut vel = ball.velocity.linear;
                     vel.x = hit_x_ratio * BALL_DEFAULT_FORCE;
-                    vel.y *= -0.975;
+                    vel.y *= -0.98;
 
                     vel = vel.normalize()
                         * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(vel, 0.0);
-
                     continue;
                 }
 
@@ -148,7 +154,7 @@ impl<'a> System<'a> for BallSystem {
             }
         }
 
-        for (ent, transform, rigidbody, ball) in
+        for (ent, mut transform, rigidbody, ball) in
             (&ents, &mut transforms, &mut rigidbodies, &mut balls).join()
         {
             if let Some(holding_paddle_ent) = ball.holding_paddle_ent {
@@ -158,12 +164,17 @@ impl<'a> System<'a> for BallSystem {
                 continue;
             }
 
+            // If the ball was bounced this tick, send it back to where it was last tick just to avoid any double collisions or such issues
+            if balls_bounced_this_tick.contains(ent.id()) {
+                transform.position = transform.last_position;
+            }
+
             // Directly set the ball velocity every tick to keep the physics engine from affecting it
             rigidbody.status = BodyStatus::Dynamic;
             rigidbody.velocity = ball.velocity;
 
             // TODO replace this with a sensor collider
-            if transform.position.y > 240.0 {
+            if transform.position.y > 235.0 {
                 ents.delete(ent).expect("Failed to delete ball ent!");
 
                 spawn_ball_events.single_write(SpawnBallEvent {

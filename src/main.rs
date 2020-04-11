@@ -18,7 +18,7 @@ fn main() {
     let window_title: &str = "Brickbonker";
     let window_width: u32 = 320;
     let window_height: u32 = 240;
-    let render_scale: f32 = 1.5;
+    let render_scale: f32 = 2.0;
     let state = GameState::new(window_width, window_height);
 
     window::run(
@@ -58,8 +58,8 @@ fn main() {
                     tex_id: 3,
                     layer: 0,
                     data: Renderable::Sprite {
-                        x: 8.0 + (i as f32 * 4.0),
-                        y: 8.0,
+                        x: 4.0 + (i as f32 * 4.0),
+                        y: 4.0,
                         origin: Point2::origin(),
                         scale: Vector2::new(0.5, 0.5),
                         color: COLOR_WHITE,

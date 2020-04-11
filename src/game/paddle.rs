@@ -3,7 +3,7 @@ use gfx::input::{InputState, VirtualKeyCode};
 use specs::prelude::*;
 
 pub const PADDLE_HIT_BOX_WIDTH: f64 = 58.0;
-pub const PADDLE_HIT_BOX_HEIGHT: f64 = 8.0;
+pub const PADDLE_HIT_BOX_HEIGHT: f64 = 9.0;
 
 pub struct PlayerPaddleComponent {
     pub held_ball_ent: Option<Entity>,

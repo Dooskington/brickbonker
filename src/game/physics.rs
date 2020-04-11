@@ -367,11 +367,11 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             // Otherwise we just attach it to the "ground".
             let (parent_body_handle, translation) =
                 if let Some(rb_handle) = physics.ent_body_handles.get(&ent.id()) {
-                    (rb_handle.clone(), Vector2::<f64>::zeros())
+                    (rb_handle.clone(), collider.offset)
                 } else {
                     (
                         physics.ground_body_handle.clone(),
-                        transform.position * WORLD_UNIT_RATIO,
+                        (transform.position + collider.offset) * WORLD_UNIT_RATIO,
                     )
                 };
 
@@ -421,7 +421,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         }
 
         // Handle modified transforms (ignoring rigidbodies, because they will update themselves)
-        for (ent, transform, _, _, _) in (
+        for (ent, transform, collider, _, _) in (
             &entities,
             &transforms,
             &colliders,
@@ -431,8 +431,11 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             .join()
         {
             if let Some(collider_handle) = physics.ent_collider_handles.get(&ent.id()).cloned() {
-                let collider = physics.colliders.get_mut(collider_handle).unwrap();
-                collider.set_position(Isometry2::new(transform.position * WORLD_UNIT_RATIO, 0.0));
+                let phys_collider = physics.colliders.get_mut(collider_handle).unwrap();
+                phys_collider.set_position(Isometry2::new(
+                    (transform.position + collider.offset) * WORLD_UNIT_RATIO,
+                    0.0,
+                ));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
@@ -465,7 +468,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                 ContactEvent::Started(handle1, handle2) => {
                     if let Some((handle_a, collider_a, handle_b, collider_b, _, manifold)) = physics
                         .geometrical_world
-                        .contact_pair(&physics.colliders, *handle1, *handle2, false)
+                        .contact_pair(&physics.colliders, *handle1, *handle2, true)
                     {
                         let entity_a = collider_a
                             .user_data()
