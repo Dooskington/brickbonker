@@ -13,6 +13,17 @@ impl Component for TransformComponent {
     type Storage = FlaggedStorage<Self, VecStorage<Self>>;
 }
 
+impl TransformComponent {
+    pub fn new(position: Vector2d, origin: Point2f, scale: Vector2f) -> Self {
+        TransformComponent {
+            position,
+            last_position: position,
+            origin,
+            scale,
+        }
+    }
+}
+
 impl Default for TransformComponent {
     fn default() -> Self {
         TransformComponent {

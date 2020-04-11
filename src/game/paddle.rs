@@ -9,6 +9,7 @@ pub struct PlayerPaddleComponent {
     pub held_ball_ent: Option<Entity>,
     pub held_ball_position: Vector2d,
     pub level_width: u32,
+    movement_linear_velocity: Vector2d,
 }
 
 impl PlayerPaddleComponent {
@@ -17,6 +18,7 @@ impl PlayerPaddleComponent {
             held_ball_ent: None,
             held_ball_position: Vector2d::zeros(),
             level_width,
+            movement_linear_velocity: Vector2d::zeros(),
         }
     }
 }
@@ -29,26 +31,27 @@ pub struct PlayerPaddleSystem;
 
 impl<'a> System<'a> for PlayerPaddleSystem {
     type SystemData = (
+        Entities<'a>,
         Read<'a, InputState>,
         WriteStorage<'a, TransformComponent>,
         WriteStorage<'a, PlayerPaddleComponent>,
         WriteStorage<'a, BallComponent>,
     );
 
-    fn run(&mut self, (input, mut transforms, mut paddles, mut balls): Self::SystemData) {
+    fn run(&mut self, (entities, input, mut transforms, mut paddles, mut balls): Self::SystemData) {
         for (transform, paddle) in (&mut transforms, &mut paddles).join() {
             let speed = 8.0;
-            let mut movement_linear_velocity = Vector2d::zeros();
+            paddle.movement_linear_velocity = Vector2d::zeros();
 
             if input.is_key_held(VirtualKeyCode::A) || input.is_key_held(VirtualKeyCode::Left) {
-                movement_linear_velocity.x -= speed;
+                paddle.movement_linear_velocity.x -= speed;
             }
 
             if input.is_key_held(VirtualKeyCode::D) || input.is_key_held(VirtualKeyCode::Right) {
-                movement_linear_velocity.x += speed;
+                paddle.movement_linear_velocity.x += speed;
             }
 
-            transform.position += movement_linear_velocity;
+            transform.position += paddle.movement_linear_velocity;
 
             // Restrain paddle to the level
             let paddle_x_min = 8.0;
@@ -60,23 +63,18 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                 transform.position.x = paddle_x_max - paddle_half_width;
             }
 
-            /*
-            paddle.held_ball_pos_x = transform.pos_x as f64;
-            paddle.held_ball_pos_y =
-                transform.pos_y - (PADDLE_BB_HEIGHT as f64 * PADDLE_SCALE_Y) - BALL_BB_RADIUS;
-            */
+            paddle.held_ball_position = transform.position
+                + Vector2d::new(
+                    0.0,
+                    (-PADDLE_HIT_BOX_HEIGHT as f64 / 2.0)
+                        - crate::game::ball::BALL_COLLIDER_RADIUS
+                        - 2.0,
+                );
         }
 
         // Handle paddles that are holding a ball
-        /*
         for mut paddle in (&mut paddles).join() {
             if let Some(ball_ent) = paddle.held_ball_ent {
-                let ball_transform = transforms.get_mut(ball_ent).expect(
-                    "Failed to set held_ball_ent position! Entity had no TransformComponent!",
-                );
-                ball_transform.pos_x = paddle.held_ball_pos_x;
-                ball_transform.pos_y = paddle.held_ball_pos_y;
-
                 if input.is_key_pressed(VirtualKeyCode::Space) {
                     paddle.held_ball_ent = None;
 
@@ -84,12 +82,11 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                         "Failed to set held_ball_ent position! Entity had no BallComponent!",
                     );
 
-                    ball.is_held = false;
-                    ball.vel_x = paddle.vel_x * 0.5;
-                    ball.vel_y = -DEFAULT_BALL_FORCE;
+                    ball.holding_paddle_ent = None;
+                    ball.velocity.linear = paddle.movement_linear_velocity * 0.5;
+                    ball.velocity.linear.y = -crate::game::ball::BALL_DEFAULT_FORCE;
                 }
             }
         }
-        */
     }
 }

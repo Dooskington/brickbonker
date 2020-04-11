@@ -42,8 +42,8 @@ pub struct PhysicsState {
     geometrical_world: DefaultGeometricalWorld<f64>,
     joint_constraints: DefaultJointConstraintSet<f64>,
     force_generators: DefaultForceGeneratorSet<f64>,
-    ent_body_handles: HashMap<Entity, DefaultBodyHandle>,
-    ent_collider_handles: HashMap<Entity, DefaultColliderHandle>,
+    ent_body_handles: HashMap<u32, DefaultBodyHandle>,
+    ent_collider_handles: HashMap<u32, DefaultColliderHandle>,
     ground_body_handle: DefaultBodyHandle,
 }
 
@@ -217,7 +217,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
         )
             .join()
         {
-            if let Some(rb_handle) = physics.ent_body_handles.remove(&ent) {
+            if let Some(rb_handle) = physics.ent_body_handles.remove(&ent.id()) {
                 eprintln!("[RigidbodySendPhysicsSystem] Duplicate rigidbody found in physics world! Removing it. Entity Id = {}, Handle = {:?}", ent_id, rb_handle);
                 physics.bodies.remove(rb_handle);
             }
@@ -229,13 +229,15 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 .status(rigidbody.status)
                 .velocity(rigidbody.velocity)
                 .mass(rigidbody.mass)
+                // TODO uncomment once bugfix is released:
+                // https://github.com/rustsim/nphysics/pull/254
                 //.max_linear_velocity(rigidbody.max_linear_velocity)
                 .user_data(ent)
                 .build();
 
             let rb_handle = physics.bodies.insert(rigid_body);
             rigidbody.handle = Some(rb_handle);
-            physics.ent_body_handles.insert(ent, rb_handle);
+            physics.ent_body_handles.insert(ent.id(), rb_handle);
             println!(
                 "[RigidbodySendPhysicsSystem] Inserted rigidbody. Entity Id = {}, Handle = {:?}",
                 ent_id, rb_handle
@@ -244,24 +246,25 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
 
         // Handle modified rigidbodies
         for (ent, rigidbody, ent_id) in (&entities, &rigidbodies, &self.modified_bodies).join() {
-            if let Some(rb_handle) = physics.ent_body_handles.get(&ent).cloned() {
+            if let Some(rb_handle) = physics.ent_body_handles.get(&ent.id()).cloned() {
                 let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
                 rb.set_velocity(rigidbody.velocity);
+                rb.set_status(rigidbody.status);
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent_id);
             }
         }
 
         // Handle removed rigidbodies
-        for (ent, _) in (&entities, &self.removed_bodies).join() {
-            if let Some(rb_handle) = physics.ent_body_handles.remove(&ent) {
+        for ent_id in (&self.removed_bodies).join() {
+            if let Some(rb_handle) = physics.ent_body_handles.remove(&ent_id) {
                 physics.bodies.remove(rb_handle);
                 println!(
                     "[RigidbodySendPhysicsSystem] Removed rigidbody. Entity Id = {}",
-                    ent.id()
+                    ent_id
                 );
             } else {
-                eprintln!("[RigidbodySendPhysicsSystem] Failed to remove rigidbody because it didn't exist! Entity Id = {}", ent.id());
+                eprintln!("[RigidbodySendPhysicsSystem] Failed to remove rigidbody because it didn't exist! Entity Id = {}", ent_id);
             }
         }
 
@@ -274,9 +277,8 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
         )
             .join()
         {
-            if let Some(rb_handle) = physics.ent_body_handles.get(&ent).cloned() {
+            if let Some(rb_handle) = physics.ent_body_handles.get(&ent.id()).cloned() {
                 let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
-                // TODO transform component should have it's own isometry already
                 rb.set_position(Isometry2::new(transform.position * WORLD_UNIT_RATIO, 0.0));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
@@ -356,7 +358,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         for (ent, transform, collider, _) in
             (&entities, &transforms, &colliders, &self.inserted_colliders).join()
         {
-            if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent) {
+            if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent.id()) {
                 eprintln!("[ColliderSendPhysicsSystem] Duplicate collider found in physics world! Removing it. Entity Id = {}, Handle = {:?}", ent.id(), collider_handle);
                 physics.colliders.remove(collider_handle);
             }
@@ -364,7 +366,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             // If this entity has a rigidbody, we need to attach the collider to it.
             // Otherwise we just attach it to the "ground".
             let (parent_body_handle, translation) =
-                if let Some(rb_handle) = physics.ent_body_handles.get(&ent) {
+                if let Some(rb_handle) = physics.ent_body_handles.get(&ent.id()) {
                     (rb_handle.clone(), Vector2::<f64>::zeros())
                 } else {
                     (
@@ -382,7 +384,9 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 .user_data(ent)
                 .build(BodyPartHandle(parent_body_handle, 0));
             let collider_handle = physics.colliders.insert(collider);
-            physics.ent_collider_handles.insert(ent, collider_handle);
+            physics
+                .ent_collider_handles
+                .insert(ent.id(), collider_handle);
             println!(
                 "[ColliderSendPhysicsSystem] Inserted collider. Entity Id = {}, Handle = {:?}",
                 ent.id(),
@@ -392,7 +396,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
 
         // Handle modified colliders
         for (ent, _, _) in (&entities, &colliders, &self.modified_colliders).join() {
-            if let Some(_) = physics.ent_collider_handles.get(&ent).cloned() {
+            if let Some(_) = physics.ent_collider_handles.get(&ent.id()).cloned() {
                 // TODO
                 println!(
                     "[ColliderSendPhysicsSystem] Modified collider: {}",
@@ -404,15 +408,15 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         }
 
         // Handle removed colliders
-        for (ent, _) in (&entities, &self.removed_colliders).join() {
-            if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent) {
+        for ent_id in (&self.removed_colliders).join() {
+            if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent_id) {
                 physics.colliders.remove(collider_handle);
                 println!(
                     "[ColliderSendPhysicsSystem] Removed collider. Entity Id = {}",
-                    ent.id()
+                    ent_id
                 );
             } else {
-                eprintln!("[ColliderSendPhysicsSystem] Failed to remove collider because it didn't exist! Entity Id = {}", ent.id());
+                eprintln!("[ColliderSendPhysicsSystem] Failed to remove collider because it didn't exist! Entity Id = {}", ent_id);
             }
         }
 
@@ -426,7 +430,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         )
             .join()
         {
-            if let Some(collider_handle) = physics.ent_collider_handles.get(&ent).cloned() {
+            if let Some(collider_handle) = physics.ent_collider_handles.get(&ent.id()).cloned() {
                 let collider = physics.colliders.get_mut(collider_handle).unwrap();
                 collider.set_position(Isometry2::new(transform.position * WORLD_UNIT_RATIO, 0.0));
             } else {

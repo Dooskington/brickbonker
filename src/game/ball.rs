@@ -13,7 +13,9 @@ use nphysics2d::{math::Velocity, object::BodyStatus};
 use shrev::EventChannel;
 use specs::prelude::*;
 
-const BALL_MAX_LINEAR_VELOCITY: f64 = 10.0;
+pub const BALL_COLLIDER_RADIUS: f64 = 4.0;
+pub const BALL_MAX_LINEAR_VELOCITY: f64 = 10.0;
+pub const BALL_DEFAULT_FORCE: f64 = 5.0;
 
 #[derive(Clone, Debug)]
 pub struct SpawnBallEvent {
@@ -25,18 +27,16 @@ pub struct SpawnBallEvent {
 #[derive(Debug)]
 pub struct BallComponent {
     pub last_pos: Point2f,
-    velocity: Velocity<f64>,
-    is_held: bool,
-    did_hit_brick_this_tick: bool,
+    pub holding_paddle_ent: Option<Entity>,
+    pub velocity: Velocity<f64>,
 }
 
 impl BallComponent {
-    pub fn new(linear_velocity: Vector2d, is_held: bool) -> Self {
+    pub fn new(linear_velocity: Vector2d, holding_paddle_ent: Option<Entity>) -> Self {
         BallComponent {
             last_pos: Point2f::origin(),
             velocity: Velocity::new(linear_velocity, 0.0),
-            is_held,
-            did_hit_brick_this_tick: false,
+            holding_paddle_ent,
         }
     }
 }
@@ -117,8 +117,8 @@ impl<'a> System<'a> for BallSystem {
                         (hit_x - paddle_transform.position.x) / (PADDLE_HIT_BOX_WIDTH / 2.0);
 
                     let mut vel = ball.velocity.linear;
-                    vel.x = hit_x_ratio * 4.0;
-                    vel.y = vel.y.abs() * -0.975;
+                    vel.x = hit_x_ratio * BALL_DEFAULT_FORCE;
+                    vel.y *= -0.975;
 
                     vel = vel.normalize()
                         * nalgebra::clamp(vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
@@ -151,34 +151,29 @@ impl<'a> System<'a> for BallSystem {
         for (ent, transform, rigidbody, ball) in
             (&ents, &mut transforms, &mut rigidbodies, &mut balls).join()
         {
-            if ball.is_held {
+            if let Some(holding_paddle_ent) = ball.holding_paddle_ent {
+                let paddle = paddles.get(holding_paddle_ent).unwrap();
+                transform.position = paddle.held_ball_position;
+                rigidbody.status = BodyStatus::Disabled;
                 continue;
             }
 
             // Directly set the ball velocity every tick to keep the physics engine from affecting it
+            rigidbody.status = BodyStatus::Dynamic;
             rigidbody.velocity = ball.velocity;
 
             // TODO replace this with a sensor collider
-            /*
-            if transform.position.y > 250.0 {
+            if transform.position.y > 240.0 {
                 ents.delete(ent).expect("Failed to delete ball ent!");
 
-                use rand::Rng;
-                let mut rand = rand::thread_rng();
-                let position = Vector2d::new(rand.gen_range(64.0, 200.0), 64.0);
-                let linear_velocity =
-                    Vector2d::new(rand.gen_range(-6.0, 6.0), rand.gen_range(-3.0, 5.0));
-
                 spawn_ball_events.single_write(SpawnBallEvent {
-                    position,
-                    linear_velocity,
-                    //owning_paddle_ent: level.player_paddle_ent,
-                    owning_paddle_ent: None,
+                    position: Vector2d::zeros(),
+                    linear_velocity: Vector2d::zeros(),
+                    owning_paddle_ent: level.player_paddle_ent,
                 });
 
                 continue;
             }
-            */
         }
     }
 }
@@ -209,14 +204,22 @@ impl<'a> System<'a> for SpawnBallSystem {
         for event in spawn_ball_events.read(&mut self.spawn_ball_event_reader.as_mut().unwrap()) {
             let ent = ents.create();
 
+            // If an owning paddle was given, we need to spawn the ball on the paddle. Otherwise use the given spawn position.
+            let spawn_pos = match event.owning_paddle_ent {
+                Some(paddle_ent) => {
+                    let paddle = paddles.get(paddle_ent).unwrap();
+                    paddle.held_ball_position
+                }
+                None => event.position,
+            };
+
             lazy_updater.insert(
                 ent,
-                TransformComponent {
-                    position: event.position,
-                    last_position: event.position,
-                    origin: Point2f::new(16.0, 16.0),
-                    scale: Vector2f::new(1.0, 1.0),
-                },
+                TransformComponent::new(
+                    spawn_pos,
+                    Point2f::new(16.0, 16.0),
+                    Vector2f::new(1.0, 1.0),
+                ),
             );
 
             lazy_updater.insert(
@@ -236,7 +239,7 @@ impl<'a> System<'a> for SpawnBallSystem {
 
             lazy_updater.insert(
                 ent,
-                BallComponent::new(event.linear_velocity, event.owning_paddle_ent.is_some()),
+                BallComponent::new(event.linear_velocity, event.owning_paddle_ent),
             );
 
             lazy_updater.insert(
@@ -254,7 +257,12 @@ impl<'a> System<'a> for SpawnBallSystem {
                 .with_blacklist(&[0]);
             lazy_updater.insert(
                 ent,
-                ColliderComponent::new(Ball::new(0.125), Vector2::zeros(), collision_groups, 0.0),
+                ColliderComponent::new(
+                    Ball::new(BALL_COLLIDER_RADIUS * crate::game::WORLD_UNIT_RATIO),
+                    Vector2::zeros(),
+                    collision_groups,
+                    0.0,
+                ),
             );
 
             if let Some(paddle_ent) = event.owning_paddle_ent {

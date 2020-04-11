@@ -35,12 +35,6 @@ const PADDLE_SPRITE_HEIGHT: u32 = 32;
 const PADDLE_SCALE_X: f32 = 1.0;
 const PADDLE_SCALE_Y: f32 = 1.0;
 
-const DEFAULT_BRICK_HP: i32 = 1;
-const BRICK_SPRITE_WIDTH: u32 = 32;
-const BRICK_SPRITE_HEIGHT: u32 = 16;
-const BRICK_SCALE_X: f32 = 1.0;
-const BRICK_SCALE_Y: f32 = 1.0;
-
 pub struct GameState<'a, 'b> {
     pub world: World,
     pub tick_dispatcher: Dispatcher<'a, 'b>,
@@ -52,8 +46,8 @@ impl<'a, 'b> GameState<'a, 'b> {
         let mut world = World::new();
 
         let mut tick_dispatcher = DispatcherBuilder::new()
-            .with(BallSystem::default(), "ball_physics", &[])
             .with(PlayerPaddleSystem, "player_paddle", &[])
+            .with(BallSystem::default(), "ball", &[])
             .with_thread_local(SpawnBallSystem::default())
             .with_thread_local(SpriteRenderSystem::default())
             .build();
@@ -72,16 +66,15 @@ impl<'a, 'b> GameState<'a, 'b> {
         let solid_collision_groups =
             ncollide2d::pipeline::CollisionGroups::new().with_membership(&[1]);
 
-        // Spawn paddle ent
+        // Spawn player paddle
         let paddle_position = Vector2d::new(width as f64 / 2.0, height as f64 - 8.0);
-        let _paddle_ent = world
+        let paddle_ent = world
             .create_entity()
-            .with(TransformComponent {
-                position: paddle_position,
-                last_position: paddle_position,
-                origin: Point2f::new(32.0, 16.0),
-                scale: Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
-            })
+            .with(TransformComponent::new(
+                paddle_position,
+                Point2f::new(32.0, 16.0),
+                Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
+            ))
             .with(ColliderComponent::new(
                 Cuboid::new(Vector2::new(
                     (paddle::PADDLE_HIT_BOX_WIDTH / 2.0) * WORLD_UNIT_RATIO,
@@ -105,152 +98,16 @@ impl<'a, 'b> GameState<'a, 'b> {
             })
             .build();
 
-        // test bricks
-        world
-            .create_entity()
-            .with(TransformComponent {
-                position: Vector2d::new(256.0, 90.0),
-                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
-                origin: Point2f::new(16.0, 8.0),
-                ..Default::default()
-            })
-            .with(ColliderComponent::new(
-                Cuboid::new(Vector2::new(0.5, 0.25)),
-                Vector2::zeros(),
-                solid_collision_groups,
-                1.0,
-            ))
-            .with(BreakableComponent {
-                hp: DEFAULT_BRICK_HP,
-            })
-            .with(SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                region: SpriteRegion {
-                    x: 96,
-                    y: 0,
-                    w: BRICK_SPRITE_WIDTH,
-                    h: BRICK_SPRITE_HEIGHT,
-                },
-                layer: 0,
-            })
-            .build();
-
-        world
-            .create_entity()
-            .with(TransformComponent {
-                position: Vector2d::new(160.0, 60.0),
-                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
-                origin: Point2f::new(16.0, 8.0),
-                ..Default::default()
-            })
-            .with(ColliderComponent::new(
-                Cuboid::new(Vector2::new(0.5, 0.25)),
-                Vector2::zeros(),
-                solid_collision_groups,
-                1.0,
-            ))
-            .with(BreakableComponent {
-                hp: DEFAULT_BRICK_HP,
-            })
-            .with(SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                region: SpriteRegion {
-                    x: 96,
-                    y: 0,
-                    w: BRICK_SPRITE_WIDTH,
-                    h: BRICK_SPRITE_HEIGHT,
-                },
-                layer: 0,
-            })
-            .build();
-
-        world
-            .create_entity()
-            .with(TransformComponent {
-                position: Vector2d::new(64.0, 90.0),
-                scale: Vector2f::new(BRICK_SCALE_X, BRICK_SCALE_Y),
-                origin: Point2f::new(16.0, 8.0),
-                ..Default::default()
-            })
-            .with(ColliderComponent::new(
-                Cuboid::new(Vector2::new(0.5, 0.25)),
-                Vector2::zeros(),
-                solid_collision_groups,
-                1.0,
-            ))
-            .with(BreakableComponent {
-                hp: DEFAULT_BRICK_HP,
-            })
-            .with(SpriteComponent {
-                color: COLOR_WHITE,
-                spritesheet_tex_id: 2,
-                region: SpriteRegion {
-                    x: 96,
-                    y: 0,
-                    w: BRICK_SPRITE_WIDTH,
-                    h: BRICK_SPRITE_HEIGHT,
-                },
-                layer: 0,
-            })
-            .build();
-
-        // Spawn the initial ball
+        // Spawn initial ball
         world
             .write_resource::<EventChannel<SpawnBallEvent>>()
             .single_write(SpawnBallEvent {
                 position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
                 linear_velocity: Vector2d::new(2.5, -2.5),
-                //owning_paddle_ent: Some(paddle_ent),
-                owning_paddle_ent: None,
+                owning_paddle_ent: Some(paddle_ent),
             });
 
-        /*
-        world
-            .write_resource::<EventChannel<SpawnBallEvent>>()
-            .single_write(SpawnBallEvent {
-                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
-                linear_velocity: Vector2d::new(-4.5, 8.4),
-                //owning_paddle_ent: Some(paddle_ent),
-                owning_paddle_ent: None,
-            });
-
-        world
-            .write_resource::<EventChannel<SpawnBallEvent>>()
-            .single_write(SpawnBallEvent {
-                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
-                linear_velocity: Vector2d::new(-3.8, -5.75),
-                //owning_paddle_ent: Some(paddle_ent),
-                owning_paddle_ent: None,
-            });
-
-        world
-            .write_resource::<EventChannel<SpawnBallEvent>>()
-            .single_write(SpawnBallEvent {
-                position: Vector2d::new(width as f64 / 2.0, height as f64 / 2.0),
-                linear_velocity: Vector2d::new(2.5, 5.2),
-                //owning_paddle_ent: Some(paddle_ent),
-                owning_paddle_ent: None,
-            });
-            */
-
-        // Bottom collider
-        world
-            .create_entity()
-            .with(TransformComponent {
-                position: Vector2d::new(0.0, height as f64 + 64.0),
-                ..Default::default()
-            })
-            .with(ColliderComponent::new(
-                Cuboid::new(Vector2::new(50.0, 10.0 * WORLD_UNIT_RATIO)),
-                Vector2::zeros(),
-                solid_collision_groups,
-                1.0,
-            ))
-            .build();
-
-        // Left collider
+        // Spawn Left wall
         world
             .create_entity()
             .with(TransformComponent {
@@ -265,7 +122,7 @@ impl<'a, 'b> GameState<'a, 'b> {
             ))
             .build();
 
-        // Top collider
+        // Spawn Top wall
         world
             .create_entity()
             .with(TransformComponent {
@@ -280,7 +137,7 @@ impl<'a, 'b> GameState<'a, 'b> {
             ))
             .build();
 
-        // Right collider
+        // Spawn Right wall
         world
             .create_entity()
             .with(TransformComponent {
@@ -299,8 +156,7 @@ impl<'a, 'b> GameState<'a, 'b> {
         world.insert(RenderState::new());
         world.insert(LevelState {
             level: 1,
-            player_paddle_ent: None,
-            //player_paddle_ent: Some(paddle_ent),
+            player_paddle_ent: Some(paddle_ent),
         });
         world.insert(PhysicsState::new());
 
