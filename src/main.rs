@@ -1,6 +1,6 @@
 mod game;
 
-use game::{physics::PhysicsState, render::RenderState, GameState};
+use game::{physics::PhysicsState, render::RenderState, GameState, level::LevelState};
 
 use gfx::{
     color::*,
@@ -44,52 +44,53 @@ fn main() {
         },
         move |game, _ticks, lerp, window, renderer| {
             game.world.write_resource::<PhysicsState>().lerp = lerp;
-            // Process commands into batches and send to the renderer
-            let mut commands = game.world.write_resource::<RenderState>().commands();
 
+            let mut render = game.world.write_resource::<RenderState>();
+
+            // FPS text
             let msg = format!("FPS: {}", window.fps);
-            for (i, c) in msg.chars().enumerate() {
-                let cols: u32 = 16;
-                let ascii: u8 = c as u8;
-                let sprite_col: u32 = ascii as u32 % cols;
-                let sprite_row: u32 = ascii as u32 / cols;
-                commands.push(gfx::renderer::RenderCommand {
-                    transparency: Transparency::Transparent,
-                    shader_program_id: 1,
-                    tex_id: 3,
-                    layer: 0,
-                    data: Renderable::Sprite {
-                        x: 4.0 + (i as f32 * 4.0),
-                        y: 4.0,
-                        origin: Point2::origin(),
-                        scale: Vector2::new(0.5, 0.5),
-                        color: COLOR_WHITE,
-                        region: SpriteRegion {
-                            x: sprite_col * 8,
-                            y: sprite_row * 16,
-                            w: 8,
-                            h: 16,
-                        },
-                    },
-                });
+            render.bind_color(COLOR_WHITE);
+            render.bind_layer(0);
+            render.bind_transparency(Transparency::Transparent);
+            render.bind_texture(3);
+            let fps_text_x = window_width as f32 - (msg.len() as f32 * 4.0) - 2.0;
+            render.text(fps_text_x, 2.0, 8, 16, 0.5, &msg);
+
+            let (score, balls, is_game_over) = {
+                let level = game.world.read_resource::<LevelState>();
+                (level.score, level.lives, level.lives == 0)
+            };
+
+            // Score text
+            let msg = format!("Score: {}", score);
+            render.bind_color( if is_game_over { COLOR_GREEN } else { COLOR_WHITE });
+            render.text(2.0, 2.0, 8, 16, 0.5, &msg);
+
+            // Balls text
+            let msg = format!("Balls: {}", balls);
+            render.bind_color(COLOR_WHITE);
+            render.text(2.0, 10.0, 8, 16, 0.5, &msg);
+            if is_game_over {
+                // Game Over text
+                let game_over_text_y = window_height as f32 - 22.0;
+                render.bind_color(COLOR_RED);
+                render.text(2.0, game_over_text_y, 8, 16, 0.75, &format!("Game Over!"));
+
+                // Restart text
+                let restart_text_y = window_height as f32 - 10.0;
+                render.bind_color(COLOR_WHITE);
+                render.text(2.0, restart_text_y, 8, 16, 0.5, &format!("Press 'R' to start a new game."));
             }
 
-            // Level background
-            commands.push(gfx::renderer::RenderCommand {
-                transparency: Transparency::Opaque,
-                shader_program_id: 1,
-                tex_id: 4,
-                layer: 0,
-                data: Renderable::Quad {
-                    bl: (0.0, 400.0),
-                    br: (400.0, 400.0),
-                    tl: (0.0, 0.0),
-                    tr: (400.0, 0.0),
-                    color: COLOR_WHITE,
-                },
-            });
+            // Background
+            render.bind_color(COLOR_WHITE);
+            render.bind_layer(0);
+            render.bind_transparency(Transparency::Opaque);
+            render.bind_texture(4);
+            render.textured_quad((0.0, 400.0), (400.0, 400.0), (0.0, 0.0), (400.0, 0.0));
 
-            let batches = renderer.process_commands(commands);
+            // Process commands into batches and send to the renderer
+            let batches = renderer.process_commands(render.commands());
             renderer.render(window.dpi_scale_factor, batches);
         },
     );

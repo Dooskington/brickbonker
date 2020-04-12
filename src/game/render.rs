@@ -66,6 +66,64 @@ impl RenderState {
         });
     }
 
+    pub fn text(
+        &mut self,
+        x: f32,
+        y: f32,
+        w: u32,
+        h: u32,
+        scale: f32,
+        text: &str,
+    ) {
+        let cols: u32 = 16;
+        for (i, c) in text.chars().enumerate() {
+            let ascii: u8 = c as u8;
+            let sprite_col: u32 = ascii as u32 % cols;
+            let sprite_row: u32 = ascii as u32 / cols;
+            self.commands.push(gfx::renderer::RenderCommand {
+                transparency: self.bound_transparency,
+                shader_program_id: 1,
+                tex_id: self.bound_texture_id,
+                layer: self.bound_layer,
+                data: Renderable::Sprite {
+                    x: x + (i as f32 * (w as f32 * scale)),
+                    y: y,
+                    origin: Point2f::origin(),
+                    scale: Vector2f::new(scale, scale),
+                    color: self.bound_color,
+                    region: SpriteRegion {
+                        x: sprite_col * w,
+                        y: sprite_row * h,
+                        w,
+                        h,
+                    },
+                },
+            });
+        }
+    }
+
+    pub fn textured_quad(
+        &mut self,
+        bl: (f32, f32),
+        br: (f32, f32),
+        tl: (f32, f32),
+        tr: (f32, f32),
+    ) {
+        self.commands.push(gfx::renderer::RenderCommand {
+            transparency: self.bound_transparency,
+            shader_program_id: 1,
+            tex_id: self.bound_texture_id,
+            layer: self.bound_layer,
+            data: Renderable::Quad {
+                bl,
+                br,
+                tl,
+                tr,
+                color: self.bound_color,
+            },
+        });
+    }
+
     pub fn clear_commands(&mut self) {
         self.bound_transparency = Transparency::default();
         self.bound_texture_id = 0;

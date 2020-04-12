@@ -1,6 +1,6 @@
 use specs::prelude::*;
 
-pub const LEVEL_BRICKS_Y_OFFSET: f64 = 16.0;
+pub const LEVEL_BRICKS_Y_OFFSET: f64 = 22.0;
 pub const LEVEL_BRICKS_WIDTH: u32 = 10;
 pub const LEVEL_BRICKS_HEIGHT: u32 = 5;
 
