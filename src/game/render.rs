@@ -66,15 +66,7 @@ impl RenderState {
         });
     }
 
-    pub fn text(
-        &mut self,
-        x: f32,
-        y: f32,
-        w: u32,
-        h: u32,
-        scale: f32,
-        text: &str,
-    ) {
+    pub fn text(&mut self, x: f32, y: f32, w: u32, h: u32, scale: f32, text: &str) {
         let cols: u32 = 16;
         for (i, c) in text.chars().enumerate() {
             let ascii: u8 = c as u8;

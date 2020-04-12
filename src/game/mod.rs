@@ -9,8 +9,8 @@ pub mod transform;
 
 use ball::{BallSystem, SpawnBallEvent, SpawnBallSystem};
 use brick::{BrickComponent, BrickSystem};
-use gfx::{color::*, sprite::SpriteRegion, renderer::Transparency};
-use level::LevelState;
+use gfx::{color::*, renderer::Transparency, sprite::SpriteRegion};
+use level::{LevelState, LoadLevelEvent};
 use nalgebra::Vector2;
 use ncollide2d::shape::Cuboid;
 use paddle::{PlayerPaddleComponent, PlayerPaddleSystem};
@@ -60,6 +60,7 @@ impl<'a, 'b> GameState<'a, 'b> {
 
         physics_dispatcher.setup(&mut world);
 
+        /*
         let solid_collision_groups =
             ncollide2d::pipeline::CollisionGroups::new().with_membership(&[1]);
 
@@ -187,10 +188,11 @@ impl<'a, 'b> GameState<'a, 'b> {
                 1.0,
             ))
             .build();
+        */
 
         // Resources
         world.insert(RenderState::new());
-        world.insert(LevelState::new(Some(paddle_ent)));
+        world.insert(LevelState::new(width, height, LoadLevelEvent));
         world.insert(PhysicsState::new());
 
         GameState {

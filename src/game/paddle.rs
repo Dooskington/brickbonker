@@ -1,4 +1,9 @@
-use crate::game::{ball::BallComponent, transform::TransformComponent, Vector2d};
+use crate::game::{
+    ball::BallComponent,
+    level::{LevelState, LoadLevelEvent},
+    transform::TransformComponent,
+    Vector2d,
+};
 use gfx::input::{InputState, VirtualKeyCode};
 use specs::prelude::*;
 
@@ -35,14 +40,17 @@ pub struct PlayerPaddleSystem;
 
 impl<'a> System<'a> for PlayerPaddleSystem {
     type SystemData = (
-        Entities<'a>,
+        Write<'a, LevelState>,
         Read<'a, InputState>,
         WriteStorage<'a, TransformComponent>,
         WriteStorage<'a, PlayerPaddleComponent>,
         WriteStorage<'a, BallComponent>,
     );
 
-    fn run(&mut self, (entities, input, mut transforms, mut paddles, mut balls): Self::SystemData) {
+    fn run(
+        &mut self,
+        (mut level, input, mut transforms, mut paddles, mut balls): Self::SystemData,
+    ) {
         for (transform, paddle) in (&mut transforms, &mut paddles).join() {
             let speed = 8.0;
             paddle.movement_linear_velocity = Vector2d::zeros();
@@ -74,6 +82,11 @@ impl<'a> System<'a> for PlayerPaddleSystem {
                         - crate::game::ball::BALL_COLLIDER_RADIUS
                         - 2.0,
                 );
+
+            // If the game is over, and the player presses 'R', begin a new game
+            if (level.lives == 0) && input.is_key_pressed(VirtualKeyCode::R) {
+                level.load_level_event = Some(LoadLevelEvent);
+            }
         }
 
         // Handle paddles that are holding a ball

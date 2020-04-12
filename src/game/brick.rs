@@ -27,13 +27,6 @@ impl Component for BrickComponent {
     type Storage = VecStorage<Self>;
 }
 
-// rename to brick component
-// add a brick system
-// listen to collision events just like the ball system
-// if the entity that hit the brick was the ball, deal damage
-// if damage is too high, delete the brick
-// the end
-
 #[derive(Default)]
 pub struct BrickSystem {
     collision_event_reader: Option<ReaderId<CollisionEvent>>,

@@ -1,17 +1,20 @@
 mod game;
 
-use game::{physics::PhysicsState, render::RenderState, GameState, level::LevelState};
+use game::{
+    level::{self, LevelState},
+    physics::PhysicsState,
+    render::RenderState,
+    GameState,
+};
 
 use gfx::{
     color::*,
     image::*,
     input::InputState,
     renderer::*,
-    sprite::*,
     texture::*,
     window::{self, *},
 };
-use nalgebra::{Point2, Vector2};
 use specs::prelude::*;
 
 fn main() {
@@ -37,9 +40,20 @@ fn main() {
             game.world.insert::<InputState>(input.clone());
             game.world.insert::<DeltaTime>(dt);
 
+            // Handle any level loads
+            let load_level_pending = game
+                .world
+                .read_resource::<LevelState>()
+                .load_level_event
+                .is_some();
+            if load_level_pending {
+                level::load_level(&mut game.world);
+            }
+
             game.world.write_resource::<RenderState>().clear_commands();
             game.tick_dispatcher.dispatch(&mut game.world);
             game.physics_dispatcher.dispatch(&mut game.world);
+
             game.world.maintain();
         },
         move |game, _ticks, lerp, window, renderer| {
@@ -63,7 +77,11 @@ fn main() {
 
             // Score text
             let msg = format!("Score: {}", score);
-            render.bind_color( if is_game_over { COLOR_GREEN } else { COLOR_WHITE });
+            render.bind_color(if is_game_over {
+                COLOR_GREEN
+            } else {
+                COLOR_WHITE
+            });
             render.text(2.0, 2.0, 8, 16, 0.5, &msg);
 
             // Balls text
@@ -79,7 +97,14 @@ fn main() {
                 // Restart text
                 let restart_text_y = window_height as f32 - 10.0;
                 render.bind_color(COLOR_WHITE);
-                render.text(2.0, restart_text_y, 8, 16, 0.5, &format!("Press 'R' to start a new game."));
+                render.text(
+                    2.0,
+                    restart_text_y,
+                    8,
+                    16,
+                    0.5,
+                    &format!("Press 'R' to start a new game."),
+                );
             }
 
             // Background

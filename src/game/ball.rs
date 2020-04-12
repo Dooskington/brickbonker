@@ -6,7 +6,7 @@ use crate::game::{
     transform::TransformComponent,
     LevelState, Point2f, Vector2d, Vector2f,
 };
-use gfx::{color::*, sprite::SpriteRegion, renderer::Transparency};
+use gfx::{color::*, renderer::Transparency, sprite::SpriteRegion};
 use nalgebra::Vector2;
 use ncollide2d::shape::Ball;
 use nphysics2d::{math::Velocity, object::BodyStatus};
@@ -14,7 +14,7 @@ use shrev::EventChannel;
 use specs::prelude::*;
 
 pub const BALL_COLLIDER_RADIUS: f64 = 3.0;
-pub const BALL_MAX_LINEAR_VELOCITY: f64 = 10.0;
+pub const BALL_MAX_LINEAR_VELOCITY: f64 = 15.0;
 pub const BALL_DEFAULT_FORCE: f64 = 6.0;
 
 #[derive(Clone, Debug)]
@@ -175,7 +175,7 @@ impl<'a> System<'a> for BallSystem {
 
             // If the ball was bounced this tick, send it back to where it was last tick just to avoid any double collisions or such issues
             if balls_bounced_this_tick.contains(ent.id()) {
-                //transform.position = transform.last_position;
+                transform.position = transform.last_position;
             }
 
             // Directly set the ball velocity every tick to keep the physics engine from affecting it

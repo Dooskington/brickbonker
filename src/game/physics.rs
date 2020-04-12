@@ -211,6 +211,19 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
             }
         }
 
+        // Handle removed rigidbodies
+        for ent_id in (&self.removed_bodies).join() {
+            if let Some(rb_handle) = physics.ent_body_handles.remove(&ent_id) {
+                physics.bodies.remove(rb_handle);
+                println!(
+                    "[RigidbodySendPhysicsSystem] Removed rigidbody. Entity Id = {}",
+                    ent_id
+                );
+            } else {
+                eprintln!("[RigidbodySendPhysicsSystem] Failed to remove rigidbody because it didn't exist! Entity Id = {}", ent_id);
+            }
+        }
+
         // Handle inserted rigidbodies
         for (ent, transform, rigidbody, ent_id) in (
             &entities,
@@ -256,19 +269,6 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
                 rb.set_status(rigidbody.status);
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent_id);
-            }
-        }
-
-        // Handle removed rigidbodies
-        for ent_id in (&self.removed_bodies).join() {
-            if let Some(rb_handle) = physics.ent_body_handles.remove(&ent_id) {
-                physics.bodies.remove(rb_handle);
-                println!(
-                    "[RigidbodySendPhysicsSystem] Removed rigidbody. Entity Id = {}",
-                    ent_id
-                );
-            } else {
-                eprintln!("[RigidbodySendPhysicsSystem] Failed to remove rigidbody because it didn't exist! Entity Id = {}", ent_id);
             }
         }
 
@@ -358,6 +358,19 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             }
         }
 
+        // Handle removed colliders
+        for ent_id in (&self.removed_colliders).join() {
+            if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent_id) {
+                physics.colliders.remove(collider_handle);
+                println!(
+                    "[ColliderSendPhysicsSystem] Removed collider. Entity Id = {}",
+                    ent_id
+                );
+            } else {
+                eprintln!("[ColliderSendPhysicsSystem] Failed to remove collider because it didn't exist! Entity Id = {}", ent_id);
+            }
+        }
+
         // Handle inserted colliders
         for (ent, transform, collider, _) in
             (&entities, &transforms, &colliders, &self.inserted_colliders).join()
@@ -408,19 +421,6 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 );
             } else {
                 eprintln!("[ColliderSendPhysicsSystem] Failed to update collider because it didn't exist! Entity Id = {}", ent.id());
-            }
-        }
-
-        // Handle removed colliders
-        for ent_id in (&self.removed_colliders).join() {
-            if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent_id) {
-                physics.colliders.remove(collider_handle);
-                println!(
-                    "[ColliderSendPhysicsSystem] Removed collider. Entity Id = {}",
-                    ent_id
-                );
-            } else {
-                eprintln!("[ColliderSendPhysicsSystem] Failed to remove collider because it didn't exist! Entity Id = {}", ent_id);
             }
         }
 
