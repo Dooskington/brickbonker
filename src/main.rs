@@ -47,7 +47,7 @@ fn main() {
             // Process commands into batches and send to the renderer
             let mut commands = game.world.write_resource::<RenderState>().commands();
 
-            let msg = format!("{}", window.fps);
+            let msg = format!("FPS: {}", window.fps);
             for (i, c) in msg.chars().enumerate() {
                 let cols: u32 = 16;
                 let ascii: u8 = c as u8;

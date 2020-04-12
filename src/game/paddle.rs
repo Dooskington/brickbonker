@@ -4,6 +4,10 @@ use specs::prelude::*;
 
 pub const PADDLE_HIT_BOX_WIDTH: f64 = 58.0;
 pub const PADDLE_HIT_BOX_HEIGHT: f64 = 9.0;
+pub const PADDLE_SPRITE_WIDTH: u32 = 64;
+pub const PADDLE_SPRITE_HEIGHT: u32 = 32;
+pub const PADDLE_SCALE_X: f32 = 1.0;
+pub const PADDLE_SCALE_Y: f32 = 1.0;
 
 pub struct PlayerPaddleComponent {
     pub held_ball_ent: Option<Entity>,
@@ -54,8 +58,8 @@ impl<'a> System<'a> for PlayerPaddleSystem {
             transform.position += paddle.movement_linear_velocity;
 
             // Restrain paddle to the level
-            let paddle_x_min = 8.0;
-            let paddle_x_max = paddle.level_width as f64 - 8.0;
+            let paddle_x_min = 4.0;
+            let paddle_x_max = paddle.level_width as f64 - 4.0;
             let paddle_half_width = PADDLE_HIT_BOX_WIDTH / 2.0;
             if (transform.position.x - paddle_half_width) < paddle_x_min {
                 transform.position.x = paddle_x_min + paddle_half_width;

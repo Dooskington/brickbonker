@@ -19,9 +19,7 @@ pub struct BrickComponent {
 
 impl BrickComponent {
     pub fn new(hp: i32) -> Self {
-        BrickComponent {
-            hp,
-        }
+        BrickComponent { hp }
     }
 }
 
@@ -44,6 +42,7 @@ pub struct BrickSystem {
 impl<'a> System<'a> for BrickSystem {
     type SystemData = (
         Entities<'a>,
+        Write<'a, LevelState>,
         Read<'a, EventChannel<CollisionEvent>>,
         WriteStorage<'a, BrickComponent>,
         ReadStorage<'a, BallComponent>,
@@ -58,15 +57,7 @@ impl<'a> System<'a> for BrickSystem {
         );
     }
 
-    fn run(
-        &mut self,
-        (
-            ents,
-            collision_events,
-            mut bricks,
-            balls,
-        ): Self::SystemData,
-    ) {
+    fn run(&mut self, (ents, mut level, collision_events, mut bricks, balls): Self::SystemData) {
         let mut bricks_hit_this_tick: BitSet = BitSet::new();
         for event in collision_events.read(&mut self.collision_event_reader.as_mut().unwrap()) {
             // Get the entities involved in the event, ignoring it entirely if either of them are not an entity
@@ -84,11 +75,12 @@ impl<'a> System<'a> for BrickSystem {
             }
         }
 
-        for (ent, mut brick, _) in (&ents, &mut bricks, &bricks_hit_this_tick).join()
-        {
+        for (ent, mut brick, _) in (&ents, &mut bricks, &bricks_hit_this_tick).join() {
             brick.hp -= 1;
             if brick.hp <= 0 {
                 ents.delete(ent).unwrap();
+
+                level.score += 100;
             }
         }
     }

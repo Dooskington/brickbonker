@@ -6,7 +6,7 @@ use crate::game::{
     transform::TransformComponent,
     LevelState, Point2f, Vector2d, Vector2f,
 };
-use gfx::{color::*, sprite::SpriteRegion};
+use gfx::{color::*, sprite::SpriteRegion, renderer::Transparency};
 use nalgebra::Vector2;
 use ncollide2d::shape::Ball;
 use nphysics2d::{math::Velocity, object::BodyStatus};
@@ -53,7 +53,7 @@ pub struct BallSystem {
 impl<'a> System<'a> for BallSystem {
     type SystemData = (
         Entities<'a>,
-        Read<'a, LevelState>,
+        Write<'a, LevelState>,
         Read<'a, EventChannel<CollisionEvent>>,
         Write<'a, EventChannel<SpawnBallEvent>>,
         WriteStorage<'a, TransformComponent>,
@@ -76,7 +76,7 @@ impl<'a> System<'a> for BallSystem {
         &mut self,
         (
             ents,
-            level,
+            mut level,
             collision_events,
             mut spawn_ball_events,
             mut transforms,
@@ -147,7 +147,10 @@ impl<'a> System<'a> for BallSystem {
                         * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(reflected_vel, vel.angular);
 
-                    println!("reflected off wall/brick: {:?}, normal was {:?}", ball.velocity, normal);
+                    println!(
+                        "reflected off wall/brick: {:?}, normal was {:?}",
+                        ball.velocity, normal
+                    );
 
                     crate::game::audio::test_audio();
                 } else {
@@ -180,14 +183,21 @@ impl<'a> System<'a> for BallSystem {
             rigidbody.velocity = ball.velocity;
 
             // TODO replace this with a sensor collider
-            if transform.position.y > 240.0 {
+            if transform.position.y > 235.0 {
                 ents.delete(ent).expect("Failed to delete ball ent!");
 
-                spawn_ball_events.single_write(SpawnBallEvent {
-                    position: Vector2d::zeros(),
-                    linear_velocity: Vector2d::zeros(),
-                    owning_paddle_ent: level.player_paddle_ent,
-                });
+                level.lives -= 1;
+                println!("{} balls remaining.", level.lives);
+                if level.lives == 0 {
+                    println!("Game over!");
+                } else {
+                    // Spawn another ball
+                    spawn_ball_events.single_write(SpawnBallEvent {
+                        position: Vector2d::zeros(),
+                        linear_velocity: Vector2d::zeros(),
+                        owning_paddle_ent: level.player_paddle_ent,
+                    });
+                }
 
                 continue;
             }
@@ -251,6 +261,7 @@ impl<'a> System<'a> for SpawnBallSystem {
                         h: 32,
                     },
                     layer: 2,
+                    transparency: Transparency::Opaque,
                 },
             );
 

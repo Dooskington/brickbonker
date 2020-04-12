@@ -1,20 +1,22 @@
 pub mod audio;
 pub mod ball;
 pub mod brick;
+pub mod level;
 pub mod paddle;
 pub mod physics;
 pub mod render;
 pub mod transform;
 
 use ball::{BallSystem, SpawnBallEvent, SpawnBallSystem};
-use brick::{BrickSystem, BrickComponent};
-use gfx::{color::*, sprite::SpriteRegion};
+use brick::{BrickComponent, BrickSystem};
+use gfx::{color::*, sprite::SpriteRegion, renderer::Transparency};
+use level::LevelState;
 use nalgebra::Vector2;
 use ncollide2d::shape::Cuboid;
 use paddle::{PlayerPaddleComponent, PlayerPaddleSystem};
 use physics::{
-    ColliderComponent, ColliderSendPhysicsSystem, PhysicsState,
-    RigidbodyReceivePhysicsSystem, RigidbodySendPhysicsSystem, WorldStepPhysicsSystem,
+    ColliderComponent, ColliderSendPhysicsSystem, PhysicsState, RigidbodyReceivePhysicsSystem,
+    RigidbodySendPhysicsSystem, WorldStepPhysicsSystem,
 };
 use render::{RenderState, SpriteComponent, SpriteRenderSystem};
 use shrev::EventChannel;
@@ -28,15 +30,6 @@ pub type Point2d = nalgebra::Point2<f64>;
 
 pub const PIXELS_PER_WORLD_UNIT: u32 = 32;
 pub const WORLD_UNIT_RATIO: f64 = (1.0 / PIXELS_PER_WORLD_UNIT as f64);
-
-const PADDLE_SPRITE_WIDTH: u32 = 64;
-const PADDLE_SPRITE_HEIGHT: u32 = 32;
-const PADDLE_SCALE_X: f32 = 1.0;
-const PADDLE_SCALE_Y: f32 = 1.0;
-
-const LEVEL_BRICKS_Y_OFFSET: f64 = 16.0;
-const LEVEL_BRICKS_WIDTH: u32 = 10;
-const LEVEL_BRICKS_HEIGHT: u32 = 5;
 
 pub struct GameState<'a, 'b> {
     pub world: World,
@@ -77,7 +70,7 @@ impl<'a, 'b> GameState<'a, 'b> {
             .with(TransformComponent::new(
                 paddle_position,
                 Point2f::new(30.0, 16.0),
-                Vector2f::new(PADDLE_SCALE_X, PADDLE_SCALE_Y),
+                Vector2f::new(paddle::PADDLE_SCALE_X, paddle::PADDLE_SCALE_Y),
             ))
             .with(ColliderComponent::new(
                 Cuboid::new(Vector2::new(
@@ -95,19 +88,20 @@ impl<'a, 'b> GameState<'a, 'b> {
                 region: SpriteRegion {
                     x: 0,
                     y: 0,
-                    w: PADDLE_SPRITE_WIDTH,
-                    h: PADDLE_SPRITE_HEIGHT,
+                    w: paddle::PADDLE_SPRITE_WIDTH,
+                    h: paddle::PADDLE_SPRITE_HEIGHT,
                 },
                 layer: 1,
+                transparency: Transparency::Opaque,
             })
             .build();
 
         // Spawn bricks
-        for y in 0..LEVEL_BRICKS_HEIGHT {
-            for x in 0..LEVEL_BRICKS_WIDTH {
+        for y in 0..level::LEVEL_BRICKS_HEIGHT {
+            for x in 0..level::LEVEL_BRICKS_WIDTH {
                 let position = Vector2d::new(
                     x as f64 * brick::BRICK_SPRITE_WIDTH as f64,
-                    LEVEL_BRICKS_Y_OFFSET + (y as f64 * brick::BRICK_SPRITE_HEIGHT as f64),
+                    level::LEVEL_BRICKS_Y_OFFSET + (y as f64 * brick::BRICK_SPRITE_HEIGHT as f64),
                 );
 
                 world
@@ -134,6 +128,7 @@ impl<'a, 'b> GameState<'a, 'b> {
                             h: brick::BRICK_SPRITE_HEIGHT,
                         },
                         layer: 2,
+                        transparency: Transparency::Opaque,
                     })
                     .build();
             }
@@ -195,10 +190,7 @@ impl<'a, 'b> GameState<'a, 'b> {
 
         // Resources
         world.insert(RenderState::new());
-        world.insert(LevelState {
-            level: 1,
-            player_paddle_ent: Some(paddle_ent),
-        });
+        world.insert(LevelState::new(Some(paddle_ent)));
         world.insert(PhysicsState::new());
 
         GameState {
@@ -207,10 +199,4 @@ impl<'a, 'b> GameState<'a, 'b> {
             physics_dispatcher,
         }
     }
-}
-
-#[derive(Default)]
-pub struct LevelState {
-    pub level: i32,
-    pub player_paddle_ent: Option<Entity>,
 }

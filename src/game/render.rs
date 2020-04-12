@@ -85,6 +85,7 @@ pub struct SpriteComponent {
     pub region: SpriteRegion,
     pub spritesheet_tex_id: TextureId,
     pub layer: u8,
+    pub transparency: Transparency,
 }
 
 impl Component for SpriteComponent {
@@ -116,6 +117,7 @@ impl<'a> System<'a> for SpriteRenderSystem {
                 (transform.position.x, transform.position.y)
             };
 
+            render.bind_transparency(sprite.transparency);
             render.bind_texture(sprite.spritesheet_tex_id);
             render.bind_color(sprite.color);
             render.bind_layer(sprite.layer);
