@@ -1,11 +1,4 @@
-use crate::game::{
-    ball::BallComponent,
-    paddle::{PlayerPaddleComponent, PADDLE_HIT_BOX_WIDTH},
-    physics::{ColliderComponent, CollisionEvent, PhysicsState, RigidbodyComponent},
-    render::SpriteComponent,
-    transform::TransformComponent,
-    LevelState, Point2f, Vector2d, Vector2f,
-};
+use crate::game::{audio::{self, AudioAssetId, AudioAssetDb}, ball::BallComponent, physics::CollisionEvent, LevelState};
 use shrev::EventChannel;
 use specs::prelude::*;
 
@@ -35,6 +28,7 @@ pub struct BrickSystem {
 impl<'a> System<'a> for BrickSystem {
     type SystemData = (
         Entities<'a>,
+        ReadExpect<'a, AudioAssetDb>,
         Write<'a, LevelState>,
         Read<'a, EventChannel<CollisionEvent>>,
         WriteStorage<'a, BrickComponent>,
@@ -50,7 +44,7 @@ impl<'a> System<'a> for BrickSystem {
         );
     }
 
-    fn run(&mut self, (ents, mut level, collision_events, mut bricks, balls): Self::SystemData) {
+    fn run(&mut self, (ents, audio_db, mut level, collision_events, mut bricks, balls): Self::SystemData) {
         let mut bricks_hit_this_tick: BitSet = BitSet::new();
         for event in collision_events.read(&mut self.collision_event_reader.as_mut().unwrap()) {
             // Get the entities involved in the event, ignoring it entirely if either of them are not an entity
@@ -74,6 +68,20 @@ impl<'a> System<'a> for BrickSystem {
                 ents.delete(ent).unwrap();
 
                 level.score += 100;
+
+                // Pick and play one of the brick break audio clips
+                let clip_id = {
+                    use rand::Rng;
+                    let roll: f32 = rand::thread_rng().gen();
+
+                    if roll <= 0.5 {
+                        AudioAssetId::SfxBrickBreak0
+                    } else {
+                        AudioAssetId::SfxBrickBreak1
+                    }
+                };
+
+                audio::play(clip_id, &audio_db, false);
             }
         }
     }

@@ -1,6 +1,7 @@
 mod game;
 
 use game::{
+    audio::{self, AudioAssetId, AudioAssetDb},
     level::{self, LevelState},
     physics::PhysicsState,
     render::RenderState,
@@ -30,11 +31,28 @@ fn main() {
         window_height,
         render_scale,
         state,
-        move |_game, renderer| {
+        move |game, renderer| {
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
             import_texture(3, "res/textures/font.png", renderer);
             import_texture(4, "res/textures/bg.png", renderer);
+
+            // Import audio assets (music and sound effects)
+            {
+                let mut audio_db = game.world.write_resource::<AudioAssetDb>();
+                audio_db.import(AudioAssetId::MusicBackground, "res/audio/tha-bounce-life.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBallBounce0, "res/audio/ball-bounce-0.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBallBounce1, "res/audio/ball-bounce-1.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBallWallHit0, "res/audio/ball-wall-hit-0.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBallWallHit1, "res/audio/ball-wall-hit-1.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBrickBreak0, "res/audio/brick-break-0.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBrickBreak1, "res/audio/brick-break-1.wav").unwrap();
+                audio_db.import(AudioAssetId::SfxBallDeath0, "res/audio/ball-death-0.wav").unwrap();
+
+                // Start playing the bg music right away
+                audio::play(AudioAssetId::MusicBackground, &audio_db, true);
+            }
+
         },
         move |game, _window, input, dt| {
             game.world.insert::<InputState>(input.clone());

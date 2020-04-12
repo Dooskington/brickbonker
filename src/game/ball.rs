@@ -4,6 +4,7 @@ use crate::game::{
     physics::{ColliderComponent, CollisionEvent, RigidbodyComponent},
     render::SpriteComponent,
     transform::TransformComponent,
+    audio::{self, AudioAssetId, AudioAssetDb},
     LevelState, Point2f, Vector2d, Vector2f,
 };
 use gfx::{color::*, renderer::Transparency, sprite::SpriteRegion};
@@ -54,6 +55,7 @@ impl<'a> System<'a> for BallSystem {
     type SystemData = (
         Entities<'a>,
         Write<'a, LevelState>,
+        ReadExpect<'a, AudioAssetDb>,
         Read<'a, EventChannel<CollisionEvent>>,
         Write<'a, EventChannel<SpawnBallEvent>>,
         WriteStorage<'a, TransformComponent>,
@@ -77,6 +79,7 @@ impl<'a> System<'a> for BallSystem {
         (
             ents,
             mut level,
+            audio_db,
             collision_events,
             mut spawn_ball_events,
             mut transforms,
@@ -124,6 +127,20 @@ impl<'a> System<'a> for BallSystem {
                     ball.velocity = Velocity::new(vel, 0.0);
                     println!("reflected off paddle: {:?}", ball.velocity);
 
+                    // Pick and play one of the ball paddle bounce audio clips
+                    let clip_id = {
+                        use rand::Rng;
+                        let roll: f32 = rand::thread_rng().gen();
+
+                        if roll <= 0.5 {
+                            AudioAssetId::SfxBallBounce0
+                        } else {
+                            AudioAssetId::SfxBallBounce1
+                        }
+                    };
+
+                    audio::play(clip_id, &audio_db, false);
+
                     continue;
                 }
 
@@ -152,7 +169,19 @@ impl<'a> System<'a> for BallSystem {
                         ball.velocity, normal
                     );
 
-                    crate::game::audio::test_audio();
+                    // Pick and play one of the ball hit audio clips
+                    let clip_id = {
+                        use rand::Rng;
+                        let roll: f32 = rand::thread_rng().gen();
+
+                        if roll <= 0.5 {
+                            AudioAssetId::SfxBallWallHit0
+                        } else {
+                            AudioAssetId::SfxBallWallHit1
+                        }
+                    };
+
+                    audio::play(clip_id, &audio_db, false);
                 } else {
                     println!(
                         "Ball collision had no normal! ball ent = {}, other ent = {}",
@@ -182,9 +211,11 @@ impl<'a> System<'a> for BallSystem {
             rigidbody.status = BodyStatus::Dynamic;
             rigidbody.velocity = ball.velocity;
 
-            // TODO replace this with a sensor collider
+            // TODO replace this with a sensor collider?
             if transform.position.y > 235.0 {
                 ents.delete(ent).expect("Failed to delete ball ent!");
+
+                audio::play(AudioAssetId::SfxBallDeath0, &audio_db, false);
 
                 level.lives -= 1;
                 println!("{} balls remaining.", level.lives);
