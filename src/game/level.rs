@@ -1,6 +1,6 @@
 use crate::game::{
     ball::SpawnBallEvent,
-    brick::{self, BrickComponent},
+    brick::{self, BrickComponent, BrickType},
     paddle::{self, PlayerPaddleComponent},
     physics::ColliderComponent,
     render::SpriteComponent,
@@ -12,14 +12,15 @@ use nalgebra::Vector2;
 use ncollide2d::shape::Cuboid;
 use shrev::EventChannel;
 use specs::prelude::*;
+use std::collections::HashMap;
 
-pub const PLAYER_DEFAULT_BALLS: u32 = 3;
+pub const PLAYER_DEFAULT_BALLS: u32 = 99;
 pub const LEVEL_BRICKS_Y_OFFSET: f64 = 22.0;
-pub const LEVEL_BRICKS_WIDTH: u32 = 10;
-pub const LEVEL_BRICKS_HEIGHT: u32 = 5;
+pub const LEVEL_BRICKS_SIZE: u32 = 16;
 
 #[derive(Default)]
 pub struct LevelState {
+    pub level: LevelAssetId,
     pub score: u32,
     pub lives: u32,
     pub player_paddle_ent: Option<Entity>,
@@ -35,6 +36,7 @@ impl LevelState {
         load_level_event: LoadLevelEvent,
     ) -> LevelState {
         LevelState {
+            level: 0,
             score: 0,
             lives: 3,
             player_paddle_ent: None,
@@ -44,7 +46,8 @@ impl LevelState {
         }
     }
 
-    pub fn reset(&mut self, player_paddle_ent: Entity) {
+    pub fn setup(&mut self, level: LevelAssetId, player_paddle_ent: Entity) {
+        self.level = level;
         self.score = 0;
         self.lives = PLAYER_DEFAULT_BALLS;
         self.player_paddle_ent = Some(player_paddle_ent);
@@ -52,10 +55,75 @@ impl LevelState {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct LoadLevelEvent;
+pub type LevelAssetId = u32;
 
-pub fn load_level(world: &mut World) {
+#[derive(Clone, Copy)]
+pub struct LoadLevelEvent {
+    pub level: LevelAssetId,
+}
+
+#[derive(Clone)]
+pub struct LevelAsset {
+    pub id: LevelAssetId,
+    pub bricks: Vec<BrickType>,
+}
+
+pub struct LevelAssetDb {
+    levels: HashMap<LevelAssetId, LevelAsset>,
+}
+
+impl LevelAssetDb {
+    pub fn new() -> Self {
+        LevelAssetDb {
+            levels: HashMap::new(),
+        }
+    }
+
+    pub fn import_folder(&mut self, path: &str) -> std::io::Result<()> {
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let file_path = entry.path();
+            if file_path.is_file() {
+                let id = file_path
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .parse::<u32>()
+                    .unwrap();
+                let mut file_string = std::fs::read_to_string(file_path)?;
+                file_string = file_string.replace("\n", "");
+                file_string.retain(|c| !c.is_whitespace());
+
+                let mut bricks = Vec::new();
+                for c in file_string.chars() {
+                    let brick_type = match c {
+                        '0' => BrickType::Grey,
+                        '1' => BrickType::Green,
+                        '2' => BrickType::Blue,
+                        '3' => BrickType::Red,
+                        '4' => BrickType::Purple,
+                        _ => BrickType::Air,
+                    };
+
+                    bricks.push(brick_type);
+                }
+
+                let level = LevelAsset { id, bricks };
+
+                self.levels.insert(id, level);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn level(&self, id: LevelAssetId) -> Option<LevelAsset> {
+        self.levels.get(&id).cloned()
+    }
+}
+
+pub fn build_level(world: &mut World, level: LevelAsset) {
     println!("Loading level...");
 
     world.delete_all();
@@ -63,8 +131,8 @@ pub fn load_level(world: &mut World) {
     let solid_collision_groups = ncollide2d::pipeline::CollisionGroups::new().with_membership(&[1]);
 
     let (level_width, level_height) = {
-        let level = world.read_resource::<LevelState>();
-        (level.level_width, level.level_height)
+        let level_state = world.read_resource::<LevelState>();
+        (level_state.level_width, level_state.level_height)
     };
 
     // Spawn player paddle
@@ -101,12 +169,27 @@ pub fn load_level(world: &mut World) {
         .build();
 
     // Spawn bricks
-    for y in 0..LEVEL_BRICKS_HEIGHT {
-        for x in 0..LEVEL_BRICKS_WIDTH {
+    for y in 0..LEVEL_BRICKS_SIZE {
+        for x in 0..LEVEL_BRICKS_SIZE {
             let position = Vector2d::new(
                 x as f64 * brick::BRICK_SPRITE_WIDTH as f64,
                 LEVEL_BRICKS_Y_OFFSET + (y as f64 * brick::BRICK_SPRITE_HEIGHT as f64),
             );
+
+            let idx = (y * LEVEL_BRICKS_SIZE) + x;
+            let brick_type = level.bricks[idx as usize];
+            if brick_type == BrickType::Air {
+                continue;
+            }
+
+            let brick_hp = match brick_type {
+                BrickType::Grey => 0,
+                BrickType::Green => 1,
+                BrickType::Blue => 2,
+                BrickType::Red => 3,
+                BrickType::Purple => 4,
+                _ => brick::BRICK_DEFAULT_HP,
+            };
 
             world
                 .create_entity()
@@ -116,12 +199,18 @@ pub fn load_level(world: &mut World) {
                     Vector2f::new(1.0, 1.0),
                 ))
                 .with(ColliderComponent::new(
-                    Cuboid::new(Vector2::new(0.5, 0.25)),
-                    Vector2::new(16.0, 8.0),
+                    Cuboid::new(Vector2::new(
+                        (brick::BRICK_SPRITE_WIDTH as f64 / 2.0) * WORLD_UNIT_RATIO,
+                        (brick::BRICK_SPRITE_HEIGHT as f64 / 2.0) * WORLD_UNIT_RATIO,
+                    )),
+                    Vector2::new(
+                        brick::BRICK_SPRITE_WIDTH as f64 / 2.0,
+                        brick::BRICK_SPRITE_HEIGHT as f64 / 2.0,
+                    ),
                     solid_collision_groups,
                     0.0,
                 ))
-                .with(BrickComponent::new(brick::BRICK_DEFAULT_HP))
+                .with(BrickComponent::new(brick_hp))
                 .with(SpriteComponent {
                     color: COLOR_WHITE,
                     spritesheet_tex_id: 2,
@@ -194,7 +283,7 @@ pub fn load_level(world: &mut World) {
 
     world
         .write_resource::<LevelState>()
-        .reset(player_paddle_ent);
+        .setup(level.id, player_paddle_ent);
 
     world.maintain();
 }

@@ -1,10 +1,10 @@
 use crate::game::{
+    audio::{self, AudioAssetDb, AudioAssetId},
     brick::BrickComponent,
     paddle::{PlayerPaddleComponent, PADDLE_HIT_BOX_WIDTH},
     physics::{ColliderComponent, CollisionEvent, RigidbodyComponent},
     render::SpriteComponent,
     transform::TransformComponent,
-    audio::{self, AudioAssetId, AudioAssetDb},
     LevelState, Point2f, Vector2d, Vector2f,
 };
 use gfx::{color::*, renderer::Transparency, sprite::SpriteRegion};
@@ -14,9 +14,9 @@ use nphysics2d::{math::Velocity, object::BodyStatus};
 use shrev::EventChannel;
 use specs::prelude::*;
 
-pub const BALL_COLLIDER_RADIUS: f64 = 3.0;
-pub const BALL_MAX_LINEAR_VELOCITY: f64 = 15.0;
-pub const BALL_DEFAULT_FORCE: f64 = 6.0;
+pub const BALL_COLLIDER_RADIUS: f64 = 2.75;
+pub const BALL_MAX_LINEAR_VELOCITY: f64 = 12.0;
+pub const BALL_DEFAULT_FORCE: f64 = 5.0;
 
 #[derive(Clone, Debug)]
 pub struct SpawnBallEvent {
@@ -145,6 +145,35 @@ impl<'a> System<'a> for BallSystem {
                 }
 
                 if let Some(normal) = event.normal {
+                    let normal = -normal;
+                    let normal = if (normal.x > 0.1) && (normal.y > 0.1) {
+                        if normal.x > normal.y {
+                            Vector2d::new(1.0, 0.0)
+                        } else {
+                            Vector2d::new(0.0, 1.0)
+                        }
+                    } else if (normal.x > 0.1) && (normal.y < 0.1) {
+                        if normal.x > normal.y.abs() {
+                            Vector2d::new(1.0, 0.0)
+                        } else {
+                            Vector2d::new(0.0, -1.0)
+                        }
+                    } else if (normal.x < 0.1) && (normal.y > 0.1) {
+                        if normal.x.abs() > normal.y {
+                            Vector2d::new(-1.0, 0.0)
+                        } else {
+                            Vector2d::new(0.0, 1.0)
+                        }
+                    } else if (normal.x < 0.1) && (normal.y < 0.1) {
+                        if normal.x.abs() > normal.y.abs() {
+                            Vector2d::new(-1.0, 0.0)
+                        } else {
+                            Vector2d::new(0.0, -1.0)
+                        }
+                    } else {
+                        normal
+                    };
+
                     let ent_b_is_brick = bricks.get(entity_b).is_some();
                     // If the ball already bounced this tick, and this is a brick, just ignore it
                     if ent_b_is_brick {
@@ -156,10 +185,9 @@ impl<'a> System<'a> for BallSystem {
                     }
 
                     let vel = ball.velocity;
-                    let normal = -normal.normalize();
                     let dot = vel.linear.dot(&normal);
 
-                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * 1.04;
+                    let mut reflected_vel = (vel.linear - (2.0 * dot) * normal) * 1.01;
                     reflected_vel = reflected_vel.normalize()
                         * nalgebra::clamp(reflected_vel.magnitude(), 0.0, BALL_MAX_LINEAR_VELOCITY);
                     ball.velocity = Velocity::new(reflected_vel, vel.angular);
@@ -204,7 +232,7 @@ impl<'a> System<'a> for BallSystem {
 
             // If the ball was bounced this tick, send it back to where it was last tick just to avoid any double collisions or such issues
             if balls_bounced_this_tick.contains(ent.id()) {
-                transform.position = transform.last_position;
+                //transform.position = transform.last_position;
             }
 
             // Directly set the ball velocity every tick to keep the physics engine from affecting it
@@ -212,7 +240,7 @@ impl<'a> System<'a> for BallSystem {
             rigidbody.velocity = ball.velocity;
 
             // TODO replace this with a sensor collider?
-            if transform.position.y > 235.0 {
+            if transform.position.y > (level.level_height as f64 - 5.0) {
                 ents.delete(ent).expect("Failed to delete ball ent!");
 
                 audio::play(AudioAssetId::SfxBallDeath0, &audio_db, false);

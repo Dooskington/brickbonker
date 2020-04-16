@@ -1,18 +1,38 @@
-use crate::game::{audio::{self, AudioAssetId, AudioAssetDb}, ball::BallComponent, physics::CollisionEvent, LevelState};
+use crate::game::{
+    audio::{self, AudioAssetDb, AudioAssetId},
+    ball::BallComponent,
+    level::LoadLevelEvent,
+    physics::CollisionEvent,
+    LevelState,
+};
 use shrev::EventChannel;
 use specs::prelude::*;
 
 pub const BRICK_DEFAULT_HP: i32 = 2;
-pub const BRICK_SPRITE_WIDTH: u32 = 32;
-pub const BRICK_SPRITE_HEIGHT: u32 = 16;
+pub const BRICK_SPRITE_WIDTH: u32 = 20;
+pub const BRICK_SPRITE_HEIGHT: u32 = 13;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BrickType {
+    Grey,
+    Air,
+    Green,
+    Blue,
+    Red,
+    Purple,
+}
 
 pub struct BrickComponent {
     pub hp: i32,
+    pub is_indestructible: bool,
 }
 
 impl BrickComponent {
     pub fn new(hp: i32) -> Self {
-        BrickComponent { hp }
+        BrickComponent {
+            hp,
+            is_indestructible: hp <= 0,
+        }
     }
 }
 
@@ -44,7 +64,10 @@ impl<'a> System<'a> for BrickSystem {
         );
     }
 
-    fn run(&mut self, (ents, audio_db, mut level, collision_events, mut bricks, balls): Self::SystemData) {
+    fn run(
+        &mut self,
+        (ents, audio_db, mut level, collision_events, mut bricks, balls): Self::SystemData,
+    ) {
         let mut bricks_hit_this_tick: BitSet = BitSet::new();
         for event in collision_events.read(&mut self.collision_event_reader.as_mut().unwrap()) {
             // Get the entities involved in the event, ignoring it entirely if either of them are not an entity
@@ -63,6 +86,10 @@ impl<'a> System<'a> for BrickSystem {
         }
 
         for (ent, mut brick, _) in (&ents, &mut bricks, &bricks_hit_this_tick).join() {
+            if brick.is_indestructible {
+                continue;
+            }
+
             brick.hp -= 1;
             if brick.hp <= 0 {
                 ents.delete(ent).unwrap();
@@ -83,6 +110,24 @@ impl<'a> System<'a> for BrickSystem {
 
                 audio::play(clip_id, &audio_db, false);
             }
+        }
+
+        let mut is_level_complete = false;
+        for (_, brick) in (&ents, &bricks).join() {
+            if brick.is_indestructible {
+                continue;
+            }
+
+            is_level_complete = true;
+            break;
+        }
+
+        // If there are no more destructible bricks remaining, and no level load in progress, the level is complete
+        if !is_level_complete && level.load_level_event.is_none() {
+            let current_level = level.level;
+            level.load_level_event = Some(LoadLevelEvent {
+                level: current_level + 1,
+            });
         }
     }
 }

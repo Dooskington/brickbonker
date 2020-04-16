@@ -10,7 +10,7 @@ pub mod transform;
 use audio::AudioAssetDb;
 use ball::{BallSystem, SpawnBallSystem};
 use brick::BrickSystem;
-use level::{LevelState, LoadLevelEvent};
+use level::{LevelAssetDb, LevelState, LoadLevelEvent};
 use paddle::PlayerPaddleSystem;
 use physics::{
     ColliderSendPhysicsSystem, PhysicsState, RigidbodyReceivePhysicsSystem,
@@ -57,11 +57,14 @@ impl<'a, 'b> GameState<'a, 'b> {
 
         physics_dispatcher.setup(&mut world);
 
+        let initial_load_level = LoadLevelEvent { level: 0 };
+
         // Resources
         world.insert(RenderState::new());
-        world.insert(LevelState::new(width, height, LoadLevelEvent));
+        world.insert(LevelState::new(width, height, initial_load_level));
         world.insert(PhysicsState::new());
         world.insert(AudioAssetDb::new());
+        world.insert(LevelAssetDb::new());
 
         GameState {
             world,

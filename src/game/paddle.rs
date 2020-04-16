@@ -85,7 +85,14 @@ impl<'a> System<'a> for PlayerPaddleSystem {
 
             // If the game is over, and the player presses 'R', begin a new game
             if (level.lives == 0) && input.is_key_pressed(VirtualKeyCode::R) {
-                level.load_level_event = Some(LoadLevelEvent);
+                level.load_level_event = Some(LoadLevelEvent { level: 0 });
+            }
+
+            if input.is_key_pressed(VirtualKeyCode::P) {
+                let current_level = level.level;
+                level.load_level_event = Some(LoadLevelEvent {
+                    level: current_level + 1,
+                });
             }
         }
 

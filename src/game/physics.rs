@@ -147,7 +147,7 @@ impl ColliderComponent {
             collision_groups,
             density,
             // CCD seems kinda buggy at the moment https://github.com/rustsim/nphysics/issues/255
-            ccd_enabled: false,
+            ccd_enabled: true,
         }
     }
 }
@@ -466,9 +466,10 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
 
     fn run(&mut self, (mut physics, mut collision_events): Self::SystemData) {
         physics.step();
-        //println!("step");
 
-        for event in physics.geometrical_world.contact_events() {
+        // Iterate through contact events in reverse order
+        // So that that the ball reacts to the most recent contact event first. Until we can get the contact_pair bug sorted
+        for event in physics.geometrical_world.contact_events().iter().rev() {
             let new_collision_events = match event {
                 ContactEvent::Started(handle1, handle2) => {
                     //println!("contact started: handle1: {:?}, handle2: {:?}", handle1, handle2);

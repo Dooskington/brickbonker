@@ -1,8 +1,8 @@
 mod game;
 
 use game::{
-    audio::{self, AudioAssetId, AudioAssetDb},
-    level::{self, LevelState},
+    audio::{self, AudioAssetDb, AudioAssetId},
+    level::{self, LevelAssetDb, LevelState},
     physics::PhysicsState,
     render::RenderState,
     GameState,
@@ -21,7 +21,7 @@ use specs::prelude::*;
 fn main() {
     let window_title: &str = "Brickbonker";
     let window_width: u32 = 320;
-    let window_height: u32 = 240;
+    let window_height: u32 = 320;
     let render_scale: f32 = 2.0;
     let state = GameState::new(window_width, window_height);
 
@@ -32,40 +32,82 @@ fn main() {
         render_scale,
         state,
         move |game, renderer| {
+            // Import textures
             import_texture(1, "res/textures/costanza.png", renderer);
             import_texture(2, "res/textures/sprites.png", renderer);
             import_texture(3, "res/textures/font.png", renderer);
             import_texture(4, "res/textures/bg.png", renderer);
 
-            // Import audio assets (music and sound effects)
+            // Import audio
             {
                 let mut audio_db = game.world.write_resource::<AudioAssetDb>();
-                audio_db.import(AudioAssetId::MusicBackground, "res/audio/tha-bounce-life.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBallBounce0, "res/audio/ball-bounce-0.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBallBounce1, "res/audio/ball-bounce-1.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBallWallHit0, "res/audio/ball-wall-hit-0.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBallWallHit1, "res/audio/ball-wall-hit-1.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBrickBreak0, "res/audio/brick-break-0.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBrickBreak1, "res/audio/brick-break-1.wav").unwrap();
-                audio_db.import(AudioAssetId::SfxBallDeath0, "res/audio/ball-death-0.wav").unwrap();
+                audio_db
+                    .import(
+                        AudioAssetId::MusicBackground,
+                        "res/audio/tha-bounce-life.wav",
+                    )
+                    .unwrap();
+                audio_db
+                    .import(AudioAssetId::SfxBallBounce0, "res/audio/ball-bounce-0.wav")
+                    .unwrap();
+                audio_db
+                    .import(AudioAssetId::SfxBallBounce1, "res/audio/ball-bounce-1.wav")
+                    .unwrap();
+                audio_db
+                    .import(
+                        AudioAssetId::SfxBallWallHit0,
+                        "res/audio/ball-wall-hit-0.wav",
+                    )
+                    .unwrap();
+                audio_db
+                    .import(
+                        AudioAssetId::SfxBallWallHit1,
+                        "res/audio/ball-wall-hit-1.wav",
+                    )
+                    .unwrap();
+                audio_db
+                    .import(AudioAssetId::SfxBrickBreak0, "res/audio/brick-break-0.wav")
+                    .unwrap();
+                audio_db
+                    .import(AudioAssetId::SfxBrickBreak1, "res/audio/brick-break-1.wav")
+                    .unwrap();
+                audio_db
+                    .import(AudioAssetId::SfxBallDeath0, "res/audio/ball-death-0.wav")
+                    .unwrap();
 
                 // Start playing the bg music right away
-                audio::play(AudioAssetId::MusicBackground, &audio_db, true);
+                //audio::play(AudioAssetId::MusicBackground, &audio_db, true);
             }
 
+            // Import levels
+            {
+                let mut level_db = game.world.write_resource::<LevelAssetDb>();
+                level_db.import_folder("res/levels").unwrap();
+            }
         },
         move |game, _window, input, dt| {
             game.world.insert::<InputState>(input.clone());
             game.world.insert::<DeltaTime>(dt);
 
             // Handle any level loads
-            let load_level_pending = game
+            let load_level_event = game
                 .world
                 .read_resource::<LevelState>()
                 .load_level_event
-                .is_some();
-            if load_level_pending {
-                level::load_level(&mut game.world);
+                .clone();
+            if let Some(load_level_event) = load_level_event {
+                let level = {
+                    let level_db = game.world.read_resource::<LevelAssetDb>();
+                    let level = if let Some(level) = level_db.level(load_level_event.level) {
+                        level.clone()
+                    } else {
+                        level_db.level(0).unwrap().clone()
+                    };
+
+                    level
+                };
+
+                level::build_level(&mut game.world, level);
             }
 
             game.world.write_resource::<RenderState>().clear_commands();

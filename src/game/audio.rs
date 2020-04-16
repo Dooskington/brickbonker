@@ -1,5 +1,8 @@
-use std::{io::{Cursor, Read}, collections::HashMap};
 use rodio::Source;
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read},
+};
 
 pub fn play(id: AudioAssetId, audio_db: &AudioAssetDb, is_looping: bool) {
     let device = rodio::default_output_device().unwrap();
@@ -12,7 +15,10 @@ pub fn play(id: AudioAssetId, audio_db: &AudioAssetDb, is_looping: bool) {
             rodio::play_raw(&device, s.convert_samples());
         }
     } else {
-        eprintln!("Failed to play audio file! Audio asset with id {:?} did not exist!", id);
+        eprintln!(
+            "Failed to play audio file! Audio asset with id {:?} did not exist!",
+            id
+        );
     }
 }
 
