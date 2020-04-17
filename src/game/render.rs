@@ -1,6 +1,7 @@
 use crate::game::{
     physics::{PhysicsState, RigidbodyComponent},
     transform::TransformComponent,
+    Point2d, Vector2d,
 };
 use gfx::{
     color::*,
@@ -46,7 +47,7 @@ impl RenderState {
         &mut self,
         x: f32,
         y: f32,
-        origin: Point2f,
+        pivot: Point2f,
         scale: Vector2f,
         region: SpriteRegion,
     ) {
@@ -58,7 +59,7 @@ impl RenderState {
             data: Renderable::Sprite {
                 x,
                 y,
-                origin,
+                pivot,
                 scale,
                 color: self.bound_color,
                 region,
@@ -80,7 +81,7 @@ impl RenderState {
                 data: Renderable::Sprite {
                     x: x + (i as f32 * (w as f32 * scale)),
                     y: y,
-                    origin: Point2f::origin(),
+                    pivot: Point2f::origin(),
                     scale: Vector2f::new(scale, scale),
                     color: self.bound_color,
                     region: SpriteRegion {
@@ -131,11 +132,35 @@ impl RenderState {
 
 #[derive(Debug)]
 pub struct SpriteComponent {
-    pub color: Color,
     pub region: SpriteRegion,
     pub spritesheet_tex_id: TextureId,
+    pub pivot: Point2f,
+    pub color: Color,
     pub layer: u8,
     pub transparency: Transparency,
+}
+
+impl SpriteComponent {
+    pub fn new(
+        region: SpriteRegion,
+        spritesheet: TextureId,
+        pivot: Point2f,
+        color: Color,
+        layer: u8,
+        transparency: Transparency,
+    ) -> Self {
+        let size = Vector2f::new(region.w as f32, region.h as f32);
+        let pivot = Point2f::new(pivot.x * size.x, pivot.y * size.y);
+
+        SpriteComponent {
+            region,
+            spritesheet_tex_id: spritesheet,
+            pivot,
+            color,
+            layer,
+            transparency,
+        }
+    }
 }
 
 impl Component for SpriteComponent {
@@ -174,7 +199,7 @@ impl<'a> System<'a> for SpriteRenderSystem {
             render.sprite(
                 x as f32,
                 y as f32,
-                transform.origin,
+                sprite.pivot,
                 transform.scale,
                 sprite.region,
             );

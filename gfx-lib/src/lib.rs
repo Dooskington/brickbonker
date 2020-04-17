@@ -22,6 +22,8 @@ pub mod window;
 
 pub use gfx_hal::image::*;
 
+pub type Vector2d = nalgebra::Vector2<f64>;
 pub type Vector2f = nalgebra::Vector2<f32>;
+pub type Point2d = nalgebra::Point2<f64>;
 pub type Point2f = nalgebra::Point2<f32>;
 pub type Point2u = nalgebra::Point2<u32>;

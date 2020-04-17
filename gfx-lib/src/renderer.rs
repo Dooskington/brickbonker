@@ -100,7 +100,7 @@ pub enum Renderable {
     Sprite {
         x: f32,
         y: f32,
-        origin: Point2f,
+        pivot: Point2f,
         scale: Vector2f,
         color: Color,
         region: SpriteRegion,
@@ -235,7 +235,7 @@ impl RenderBatch {
             Renderable::Sprite {
                 x,
                 y,
-                origin,
+                pivot,
                 scale,
                 color,
                 region,
@@ -244,7 +244,7 @@ impl RenderBatch {
                     self.batch_mesh.as_mut().unwrap(),
                     x,
                     y,
-                    origin,
+                    pivot,
                     scale,
                     color,
                     region,

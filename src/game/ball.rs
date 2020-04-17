@@ -301,27 +301,26 @@ impl<'a> System<'a> for SpawnBallSystem {
 
             lazy_updater.insert(
                 ent,
-                TransformComponent::new(
-                    spawn_pos,
-                    Point2f::new(16.0, 16.0),
-                    Vector2f::new(1.0, 1.0),
-                ),
+                TransformComponent::new(spawn_pos, Vector2f::new(1.0, 1.0)),
             );
+
+            let ball_sprite = SpriteRegion {
+                x: 64,
+                y: 0,
+                w: 32,
+                h: 32,
+            };
 
             lazy_updater.insert(
                 ent,
-                SpriteComponent {
-                    color: COLOR_WHITE,
-                    spritesheet_tex_id: 2,
-                    region: SpriteRegion {
-                        x: 64,
-                        y: 0,
-                        w: 32,
-                        h: 32,
-                    },
-                    layer: 2,
-                    transparency: Transparency::Opaque,
-                },
+                SpriteComponent::new(
+                    ball_sprite,
+                    2,
+                    Point2f::new(0.5, 0.5),
+                    COLOR_WHITE,
+                    2,
+                    Transparency::Opaque,
+                ),
             );
 
             lazy_updater.insert(

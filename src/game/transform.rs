@@ -5,7 +5,6 @@ use specs::prelude::*;
 pub struct TransformComponent {
     pub position: Vector2d,
     pub last_position: Vector2d,
-    pub origin: Point2f,
     pub scale: Vector2f,
 }
 
@@ -14,11 +13,10 @@ impl Component for TransformComponent {
 }
 
 impl TransformComponent {
-    pub fn new(position: Vector2d, origin: Point2f, scale: Vector2f) -> Self {
+    pub fn new(position: Vector2d, scale: Vector2f) -> Self {
         TransformComponent {
             position,
             last_position: position,
-            origin,
             scale,
         }
     }
@@ -29,7 +27,6 @@ impl Default for TransformComponent {
         TransformComponent {
             position: Vector2d::zeros(),
             last_position: Vector2d::zeros(),
-            origin: Point2f::origin(),
             scale: Vector2f::new(1.0, 1.0),
         }
     }

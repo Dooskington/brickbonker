@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 gfx = { path = "gfx-lib" }
 rand = "0.7"
-specs = "0.16.1"
+specs = { version = "0.16.1", features = ["storage-event-control"] }
 shrev = "1.1.1"
 nalgebra = "0.20.0"
 ncollide2d = "0.22"

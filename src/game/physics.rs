@@ -9,7 +9,7 @@ use nphysics2d::{
     joint::DefaultJointConstraintSet,
     math::Velocity,
     object::{
-        Body, BodyPartHandle, BodySet, BodyStatus, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
+        Body, BodyPartHandle, BodyStatus, ColliderDesc, DefaultBodyHandle, DefaultBodySet,
         DefaultColliderHandle, DefaultColliderSet, Ground, RigidBodyDesc,
     },
     world::{DefaultGeometricalWorld, DefaultMechanicalWorld},
@@ -128,6 +128,7 @@ impl Component for RigidbodyComponent {
 
 pub struct ColliderComponent {
     pub shape: ShapeHandle<f64>,
+    pub center: Vector2<f64>,
     pub offset: Vector2<f64>,
     pub collision_groups: CollisionGroups,
     pub density: f64,
@@ -143,6 +144,7 @@ impl ColliderComponent {
     ) -> Self {
         ColliderComponent {
             shape: ShapeHandle::new(shape),
+            center: Vector2d::zeros(),
             offset,
             collision_groups,
             density,
@@ -313,14 +315,14 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
     type SystemData = (
         Entities<'a>,
         WriteExpect<'a, PhysicsState>,
-        ReadStorage<'a, ColliderComponent>,
+        WriteStorage<'a, ColliderComponent>,
         ReadStorage<'a, TransformComponent>,
         ReadStorage<'a, RigidbodyComponent>,
     );
 
     fn run(
         &mut self,
-        (entities, mut physics, colliders, transforms, rigidbodies): Self::SystemData,
+        (entities, mut physics, mut colliders, transforms, rigidbodies): Self::SystemData,
     ) {
         self.inserted_colliders.clear();
         self.modified_colliders.clear();
@@ -371,14 +373,29 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             }
         }
 
+        colliders.set_event_emission(false);
+
         // Handle inserted colliders
-        for (ent, transform, collider, _) in
-            (&entities, &transforms, &colliders, &self.inserted_colliders).join()
+        for (ent, transform, mut collider, _) in (
+            &entities,
+            &transforms,
+            &mut colliders,
+            &self.inserted_colliders,
+        )
+            .join()
         {
             if let Some(collider_handle) = physics.ent_collider_handles.remove(&ent.id()) {
                 eprintln!("[ColliderSendPhysicsSystem] Duplicate collider found in physics world! Removing it. Entity Id = {}, Handle = {:?}", ent.id(), collider_handle);
                 physics.colliders.remove(collider_handle);
             }
+
+            // Calculate the collider center, using the entity origin
+            // TODO if sprite exists, try to calculate center
+            //collider.center.x = (transform.pivot.x + (0.5 - transform.pivot.x)) as f64;
+            //collider.center.y = (transform.pivot.y + (0.5 - transform.pivot.y)) as f64;
+
+            // todo do we need sprite width and height?
+            // need to turn the ratio into a pixel position, then convert that to world units
 
             // If this entity has a rigidbody, we need to attach the collider to it.
             // Otherwise we just attach it to the "ground".
@@ -392,7 +409,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                     )
                 };
 
-            let collider = ColliderDesc::new(collider.shape.clone())
+            let collider_desc = ColliderDesc::new(collider.shape.clone())
                 .density(collider.density)
                 .translation(translation)
                 .margin(0.02)
@@ -400,7 +417,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 .collision_groups(collider.collision_groups.clone())
                 .user_data(ent)
                 .build(BodyPartHandle(parent_body_handle, 0));
-            let collider_handle = physics.colliders.insert(collider);
+            let collider_handle = physics.colliders.insert(collider_desc);
             physics
                 .ent_collider_handles
                 .insert(ent.id(), collider_handle);
@@ -411,7 +428,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             );
         }
 
-        // Handle modified colliders
+        // Handle modified colliders (exclude new colliders)
         for (ent, _, _) in (&entities, &colliders, &self.modified_colliders).join() {
             if let Some(_) = physics.ent_collider_handles.get(&ent.id()).cloned() {
                 // TODO
@@ -444,6 +461,8 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
         }
+
+        colliders.set_event_emission(true);
     }
 
     fn setup(&mut self, world: &mut World) {

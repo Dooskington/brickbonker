@@ -15,8 +15,8 @@ use specs::prelude::*;
 use std::collections::HashMap;
 
 pub const PLAYER_DEFAULT_BALLS: u32 = 99;
-pub const LEVEL_BRICKS_Y_OFFSET: f64 = 22.0;
-pub const LEVEL_BRICKS_SIZE: u32 = 16;
+pub const LEVEL_BRICKS_Y_OFFSET: f64 = 32.0;
+pub const LEVEL_BRICKS_GRID_SIZE: u32 = 16;
 
 #[derive(Default)]
 pub struct LevelState {
@@ -136,12 +136,17 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
     };
 
     // Spawn player paddle
+    let paddle_sprite = SpriteRegion {
+        x: 0,
+        y: 0,
+        w: paddle::PADDLE_SPRITE_WIDTH,
+        h: paddle::PADDLE_SPRITE_HEIGHT,
+    };
     let paddle_position = Vector2d::new(level_width as f64 / 2.0, level_height as f64 - 10.0);
     let player_paddle_ent = world
         .create_entity()
         .with(TransformComponent::new(
             paddle_position,
-            Point2f::new(30.0, 16.0),
             Vector2f::new(paddle::PADDLE_SCALE_X, paddle::PADDLE_SCALE_Y),
         ))
         .with(ColliderComponent::new(
@@ -154,29 +159,25 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
             1.0,
         ))
         .with(PlayerPaddleComponent::new(level_width))
-        .with(SpriteComponent {
-            color: COLOR_WHITE,
-            spritesheet_tex_id: 2,
-            region: SpriteRegion {
-                x: 0,
-                y: 0,
-                w: paddle::PADDLE_SPRITE_WIDTH,
-                h: paddle::PADDLE_SPRITE_HEIGHT,
-            },
-            layer: 1,
-            transparency: Transparency::Opaque,
-        })
+        .with(SpriteComponent::new(
+            paddle_sprite,
+            2,
+            Point2f::new(0.5, 0.5),
+            COLOR_WHITE,
+            1,
+            Transparency::Opaque,
+        ))
         .build();
 
     // Spawn bricks
-    for y in 0..LEVEL_BRICKS_SIZE {
-        for x in 0..LEVEL_BRICKS_SIZE {
+    for y in 0..LEVEL_BRICKS_GRID_SIZE {
+        for x in 0..LEVEL_BRICKS_GRID_SIZE {
             let position = Vector2d::new(
                 x as f64 * brick::BRICK_SPRITE_WIDTH as f64,
                 LEVEL_BRICKS_Y_OFFSET + (y as f64 * brick::BRICK_SPRITE_HEIGHT as f64),
             );
 
-            let idx = (y * LEVEL_BRICKS_SIZE) + x;
+            let idx = (y * LEVEL_BRICKS_GRID_SIZE) + x;
             let brick_type = level.bricks[idx as usize];
             if brick_type == BrickType::Air {
                 continue;
@@ -191,13 +192,16 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
                 _ => brick::BRICK_DEFAULT_HP,
             };
 
+            let brick_sprite = SpriteRegion {
+                x: 96,
+                y: 0,
+                w: brick::BRICK_SPRITE_WIDTH,
+                h: brick::BRICK_SPRITE_HEIGHT,
+            };
+
             world
                 .create_entity()
-                .with(TransformComponent::new(
-                    position,
-                    Point2f::origin(),
-                    Vector2f::new(1.0, 1.0),
-                ))
+                .with(TransformComponent::new(position, Vector2f::new(1.0, 1.0)))
                 .with(ColliderComponent::new(
                     Cuboid::new(Vector2::new(
                         (brick::BRICK_SPRITE_WIDTH as f64 / 2.0) * WORLD_UNIT_RATIO,
@@ -211,18 +215,14 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
                     0.0,
                 ))
                 .with(BrickComponent::new(brick_hp))
-                .with(SpriteComponent {
-                    color: COLOR_WHITE,
-                    spritesheet_tex_id: 2,
-                    region: SpriteRegion {
-                        x: 96,
-                        y: 0,
-                        w: brick::BRICK_SPRITE_WIDTH,
-                        h: brick::BRICK_SPRITE_HEIGHT,
-                    },
-                    layer: 2,
-                    transparency: Transparency::Opaque,
-                })
+                .with(SpriteComponent::new(
+                    brick_sprite,
+                    2,
+                    Point2f::origin(),
+                    COLOR_WHITE,
+                    2,
+                    Transparency::Opaque,
+                ))
                 .build();
         }
     }
