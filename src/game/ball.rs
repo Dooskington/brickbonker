@@ -344,7 +344,7 @@ impl<'a> System<'a> for SpawnBallSystem {
             lazy_updater.insert(
                 ent,
                 ColliderComponent::new(
-                    Ball::new(BALL_COLLIDER_RADIUS * crate::game::WORLD_UNIT_RATIO),
+                    Ball::new(BALL_COLLIDER_RADIUS * crate::game::PIXELS_TO_WORLD_UNITS),
                     Vector2::zeros(),
                     collision_groups,
                     0.0,

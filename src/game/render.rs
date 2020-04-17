@@ -135,6 +135,7 @@ pub struct SpriteComponent {
     pub region: SpriteRegion,
     pub spritesheet_tex_id: TextureId,
     pub pivot: Point2f,
+    pub pivot_pixels: Point2f,
     pub color: Color,
     pub layer: u8,
     pub transparency: Transparency,
@@ -149,13 +150,13 @@ impl SpriteComponent {
         layer: u8,
         transparency: Transparency,
     ) -> Self {
-        let size = Vector2f::new(region.w as f32, region.h as f32);
-        let pivot = Point2f::new(pivot.x * size.x, pivot.y * size.y);
+        let pivot_pixels = Point2f::new(pivot.x * region.w as f32, pivot.y * region.h as f32);
 
         SpriteComponent {
             region,
             spritesheet_tex_id: spritesheet,
             pivot,
+            pivot_pixels,
             color,
             layer,
             transparency,
@@ -199,7 +200,7 @@ impl<'a> System<'a> for SpriteRenderSystem {
             render.sprite(
                 x as f32,
                 y as f32,
-                sprite.pivot,
+                sprite.pivot_pixels,
                 transform.scale,
                 sprite.region,
             );

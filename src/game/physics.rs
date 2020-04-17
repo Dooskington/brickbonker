@@ -1,4 +1,4 @@
-use crate::game::*;
+use crate::game::{render::SpriteComponent, transform::TransformComponent, Vector2d, Point2d, PIXELS_TO_WORLD_UNITS, PIXELS_PER_WORLD_UNIT};
 use nalgebra::{Isometry2, Vector2};
 use ncollide2d::{
     pipeline::{CollisionGroups, ContactEvent},
@@ -241,7 +241,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
             }
 
             let rigid_body = RigidBodyDesc::new()
-                .translation(transform.position * WORLD_UNIT_RATIO)
+                .translation(transform.position * PIXELS_TO_WORLD_UNITS)
                 .rotation(0.0)
                 .gravity_enabled(false)
                 .status(rigidbody.status)
@@ -285,7 +285,7 @@ impl<'a> System<'a> for RigidbodySendPhysicsSystem {
         {
             if let Some(rb_handle) = physics.ent_body_handles.get(&ent.id()).cloned() {
                 let rb = physics.bodies.rigid_body_mut(rb_handle).unwrap();
-                rb.set_position(Isometry2::new(transform.position * WORLD_UNIT_RATIO, 0.0));
+                rb.set_position(Isometry2::new(transform.position * PIXELS_TO_WORLD_UNITS, 0.0));
             } else {
                 eprintln!("[RigidbodySendPhysicsSystem] Failed to update rigidbody because it didn't exist! Entity Id = {}", ent.id());
             }
@@ -318,11 +318,12 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         WriteStorage<'a, ColliderComponent>,
         ReadStorage<'a, TransformComponent>,
         ReadStorage<'a, RigidbodyComponent>,
+        ReadStorage<'a, SpriteComponent>,
     );
 
     fn run(
         &mut self,
-        (entities, mut physics, mut colliders, transforms, rigidbodies): Self::SystemData,
+        (entities, mut physics, mut colliders, transforms, rigidbodies, sprites): Self::SystemData,
     ) {
         self.inserted_colliders.clear();
         self.modified_colliders.clear();
@@ -376,7 +377,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
         colliders.set_event_emission(false);
 
         // Handle inserted colliders
-        for (ent, transform, mut collider, _) in (
+        for (ent, transform, collider, _) in (
             &entities,
             &transforms,
             &mut colliders,
@@ -389,23 +390,23 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
                 physics.colliders.remove(collider_handle);
             }
 
-            // Calculate the collider center, using the entity origin
-            // TODO if sprite exists, try to calculate center
-            //collider.center.x = (transform.pivot.x + (0.5 - transform.pivot.x)) as f64;
-            //collider.center.y = (transform.pivot.y + (0.5 - transform.pivot.y)) as f64;
-
-            // todo do we need sprite width and height?
-            // need to turn the ratio into a pixel position, then convert that to world units
+            // If the entity also has a sprite component, estimate the collider center to be the center of the sprite
+            if let Some(sprite) = sprites.get(ent) {
+                let dist_x = 0.5 - (sprite.pivot.x as f64);
+                let dist_y = 0.5 - (sprite.pivot.y as f64);
+                collider.center.x = dist_x * (sprite.region.w as f64);
+                collider.center.y = dist_y * (sprite.region.h as f64);
+            }
 
             // If this entity has a rigidbody, we need to attach the collider to it.
             // Otherwise we just attach it to the "ground".
             let (parent_body_handle, translation) =
                 if let Some(rb_handle) = physics.ent_body_handles.get(&ent.id()) {
-                    (rb_handle.clone(), collider.offset)
+                    (rb_handle.clone(), (collider.center + collider.offset) * PIXELS_TO_WORLD_UNITS)
                 } else {
                     (
                         physics.ground_body_handle.clone(),
-                        (transform.position + collider.offset) * WORLD_UNIT_RATIO,
+                        (transform.position + collider.center + collider.offset) * PIXELS_TO_WORLD_UNITS,
                     )
                 };
 
@@ -454,7 +455,7 @@ impl<'a> System<'a> for ColliderSendPhysicsSystem {
             if let Some(collider_handle) = physics.ent_collider_handles.get(&ent.id()).cloned() {
                 let phys_collider = physics.colliders.get_mut(collider_handle).unwrap();
                 phys_collider.set_position(Isometry2::new(
-                    (transform.position + collider.offset) * WORLD_UNIT_RATIO,
+                    (transform.position + collider.center + collider.offset) * PIXELS_TO_WORLD_UNITS,
                     0.0,
                 ));
             } else {
@@ -549,7 +550,7 @@ impl<'a> System<'a> for WorldStepPhysicsSystem {
                         None
                     }
                 }
-                ContactEvent::Stopped(handle1, handle2) => {
+                ContactEvent::Stopped(_handle1, _handle2) => {
                     //println!("contact stopped: handle1: {:?}, handle2: {:?}", handle1, handle2);
                     // TODO
                     None

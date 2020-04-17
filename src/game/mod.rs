@@ -26,7 +26,7 @@ pub type Point2f = nalgebra::Point2<f32>;
 pub type Point2d = nalgebra::Point2<f64>;
 
 pub const PIXELS_PER_WORLD_UNIT: u32 = 32;
-pub const WORLD_UNIT_RATIO: f64 = (1.0 / PIXELS_PER_WORLD_UNIT as f64);
+pub const PIXELS_TO_WORLD_UNITS: f64 = (1.0 / PIXELS_PER_WORLD_UNIT as f64);
 
 pub struct GameState<'a, 'b> {
     pub world: World,

@@ -5,7 +5,7 @@ use crate::game::{
     physics::ColliderComponent,
     render::SpriteComponent,
     transform::TransformComponent,
-    Point2f, Vector2d, Vector2f, WORLD_UNIT_RATIO,
+    Point2f, Vector2d, Vector2f, PIXELS_TO_WORLD_UNITS,
 };
 use gfx::{color::*, renderer::Transparency, sprite::SpriteRegion};
 use nalgebra::Vector2;
@@ -151,8 +151,8 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
         ))
         .with(ColliderComponent::new(
             Cuboid::new(Vector2::new(
-                (paddle::PADDLE_HIT_BOX_WIDTH / 2.0) * WORLD_UNIT_RATIO,
-                (paddle::PADDLE_HIT_BOX_HEIGHT / 2.0) * WORLD_UNIT_RATIO,
+                (paddle::PADDLE_HIT_BOX_WIDTH / 2.0) * PIXELS_TO_WORLD_UNITS,
+                (paddle::PADDLE_HIT_BOX_HEIGHT / 2.0) * PIXELS_TO_WORLD_UNITS,
             )),
             Vector2::zeros(),
             solid_collision_groups,
@@ -204,13 +204,10 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
                 .with(TransformComponent::new(position, Vector2f::new(1.0, 1.0)))
                 .with(ColliderComponent::new(
                     Cuboid::new(Vector2::new(
-                        (brick::BRICK_SPRITE_WIDTH as f64 / 2.0) * WORLD_UNIT_RATIO,
-                        (brick::BRICK_SPRITE_HEIGHT as f64 / 2.0) * WORLD_UNIT_RATIO,
+                        (brick::BRICK_SPRITE_WIDTH as f64 / 2.0) * PIXELS_TO_WORLD_UNITS,
+                        (brick::BRICK_SPRITE_HEIGHT as f64 / 2.0) * PIXELS_TO_WORLD_UNITS,
                     )),
-                    Vector2::new(
-                        brick::BRICK_SPRITE_WIDTH as f64 / 2.0,
-                        brick::BRICK_SPRITE_HEIGHT as f64 / 2.0,
-                    ),
+                    Vector2::zeros(),
                     solid_collision_groups,
                     0.0,
                 ))
@@ -244,7 +241,7 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
             ..Default::default()
         })
         .with(ColliderComponent::new(
-            Cuboid::new(Vector2::new(20.0 * WORLD_UNIT_RATIO, 50.0)),
+            Cuboid::new(Vector2::new(20.0 * PIXELS_TO_WORLD_UNITS, 50.0)),
             Vector2::zeros(),
             solid_collision_groups,
             1.0,
@@ -259,7 +256,7 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
             ..Default::default()
         })
         .with(ColliderComponent::new(
-            Cuboid::new(Vector2::new(50.0, 20.0 * WORLD_UNIT_RATIO)),
+            Cuboid::new(Vector2::new(50.0, 20.0 * PIXELS_TO_WORLD_UNITS)),
             Vector2::zeros(),
             solid_collision_groups,
             1.0,
@@ -274,7 +271,7 @@ pub fn build_level(world: &mut World, level: LevelAsset) {
             ..Default::default()
         })
         .with(ColliderComponent::new(
-            Cuboid::new(Vector2::new(20.0 * WORLD_UNIT_RATIO, 50.0)),
+            Cuboid::new(Vector2::new(20.0 * PIXELS_TO_WORLD_UNITS, 50.0)),
             Vector2::zeros(),
             solid_collision_groups,
             1.0,
